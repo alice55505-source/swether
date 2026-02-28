@@ -540,8 +540,8 @@ function update(delta){
   }
 }
 
-function handleCatch(food){
-  // overridden below
+function handleCatch_placeholder_removed(food){
+  // removed - see full handleCatch near Web Audio section
 }
 
 // ===== DRAW =====
@@ -947,7 +947,7 @@ function stopBgm() {
   bgmTimeout = null;
 }
 
-// Patch handleCatch to play sounds
+// ===== handleCatch: 判斷結果、播音效、截圖 =====
 function handleCatch(food) {
   if(navigator.vibrate) navigator.vibrate(30);
   const px = food.x + food.size/2;
