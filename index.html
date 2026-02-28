@@ -165,6 +165,7 @@ const IMGS = {
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 let level = 1, score = 0;
+let levelScores = {1:0, 2:0, 3:0}; // 每關得分
 let currentFood = null, foodQueue = [];
 let stats = {1:{good:0,bad:0},2:{good:0,bad:0},3:{good:0,bad:0}};
 let orientationAllowed = false;
@@ -210,6 +211,34 @@ async function buildSlideshowVideo() {
 
     let stream;
     try { stream = oc.captureStream(30); } catch(e) { resolve(null); return; }
+
+    // 加入背景音樂音軌
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      const vac = new AC();
+      const dest = vac.createMediaStreamDestination();
+      // 簡單五聲音階背景樂
+      const melody = [523,659,784,659,523,784,1047,784,659,523,659,523,392,523,659,784];
+      const tempo = 0.22;
+      let ni = 0;
+      function schedBgm(){
+        const freq = melody[ni++ % melody.length];
+        const t = vac.currentTime;
+        const o = vac.createOscillator();
+        const g = vac.createGain();
+        o.connect(g); g.connect(dest);
+        o.type = 'sine';
+        o.frequency.setValueAtTime(freq, t);
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(0.08, t+0.02);
+        g.gain.setValueAtTime(0.08, t+tempo*0.7);
+        g.gain.exponentialRampToValueAtTime(0.001, t+tempo);
+        o.start(t); o.stop(t+tempo);
+        setTimeout(schedBgm, tempo*1000);
+      }
+      schedBgm();
+      dest.stream.getAudioTracks().forEach(t => stream.addTrack(t));
+    } catch(e) { /* 無音訊也沒關係 */ }
 
     const chunks = [];
     const mr = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 3000000 });
@@ -512,20 +541,7 @@ function update(delta){
 }
 
 function handleCatch(food){
-  if(navigator.vibrate) navigator.vibrate(30);
-  if(food.health==='bad'){
-    score-=2; stats[level].bad++; bgState='bad';
-  } else if(
-    (level===1 && food.type==='meat') ||
-    (level===2 && food.type==='vegetable') ||
-    (level===3 && food.type==='rice')
-  ){
-    score+=2; stats[level].good++; bgState='good';
-  } else {
-    score-=1; stats[level].bad++; bgState='wrong';
-  }
-  if(bgTimeout) clearTimeout(bgTimeout);
-  bgTimeout = setTimeout(()=>bgState='normal', 2000);
+  // overridden below
 }
 
 // ===== DRAW =====
@@ -699,24 +715,45 @@ function showResult(){
   const resultImg = score>=20 ? IMGS.haojiankan : score>=10 ? IMGS.yeye : IMGS.taibujiankan;
   const msg = score>=20 ? '太棒了！爺爺好健康！' : score>=10 ? '不錯喔，繼續加油！' : '需要多練習喔！';
 
+  const lvlColor = s => s > 0 ? '#22bb55' : s < 0 ? '#ee2222' : '#888';
+
   el.innerHTML = `
-    <div style="width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;background:#fef3e2;padding:24px;text-align:center;overflow-y:auto;">
-      <img src="${resultImg}" style="width:70%;max-width:280px;border-radius:16px;margin-bottom:16px;box-shadow:0 4px 20px rgba(0,0,0,0.2);">
-      <div style="font-size:22px;font-weight:700;color:#333;margin-bottom:6px;">${msg}</div>
-      <div style="font-size:64px;font-weight:900;color:#e05500;text-shadow:2px 2px 0 rgba(0,0,0,0.1);margin-bottom:20px;">${score} 分</div>
-      <div id="videoArea" style="width:100%;max-width:360px;margin-bottom:16px;">
+    <div style="width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;background:#fef3e2;padding:20px;text-align:center;overflow-y:auto;">
+      <img src="${resultImg}" style="width:60%;max-width:240px;border-radius:16px;margin-bottom:12px;box-shadow:0 4px 20px rgba(0,0,0,0.2);">
+      <div style="font-size:20px;font-weight:700;color:#333;margin-bottom:10px;">${msg}</div>
+
+      <div style="background:#fff;border-radius:16px;padding:14px 20px;width:100%;max-width:360px;margin-bottom:14px;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+        <div style="font-size:14px;color:#aaa;margin-bottom:8px;">各關分數</div>
+        <div style="display:flex;justify-content:space-around;align-items:center;">
+          <div><div style="font-size:13px;color:#888;">第一關🥩</div><div style="font-size:32px;font-weight:900;color:${lvlColor(levelScores[1])};">${levelScores[1]>0?'+':''}${levelScores[1]}</div></div>
+          <div style="font-size:20px;color:#ddd;">|</div>
+          <div><div style="font-size:13px;color:#888;">第二關🥦</div><div style="font-size:32px;font-weight:900;color:${lvlColor(levelScores[2])};">${levelScores[2]>0?'+':''}${levelScores[2]}</div></div>
+          <div style="font-size:20px;color:#ddd;">|</div>
+          <div><div style="font-size:13px;color:#888;">第三關🍠</div><div style="font-size:32px;font-weight:900;color:${lvlColor(levelScores[3])};">${levelScores[3]>0?'+':''}${levelScores[3]}</div></div>
+        </div>
+        <div style="border-top:1px solid #eee;margin-top:10px;padding-top:10px;">
+          <span style="font-size:15px;color:#888;">總分</span>
+          <span style="font-size:40px;font-weight:900;color:#e05500;margin-left:12px;">${score} 分</span>
+        </div>
+      </div>
+
+      <div id="videoArea" style="width:100%;max-width:360px;margin-bottom:14px;">
         <div style="background:#fff;border-radius:16px;padding:16px;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
-          <div style="font-size:16px;color:#888;margin-bottom:8px;">🎬 正在製作回顧影片…</div>
-          <div id="videoProgress" style="height:8px;background:#eee;border-radius:4px;overflow:hidden;">
+          <div style="font-size:15px;color:#888;margin-bottom:8px;">🎬 正在製作回顧影片…</div>
+          <div style="height:8px;background:#eee;border-radius:4px;overflow:hidden;">
             <div id="videoProgressBar" style="height:100%;width:0%;background:linear-gradient(90deg,#f0a500,#e05500);transition:width 0.3s;"></div>
           </div>
         </div>
       </div>
-      <button class="btn-main" onclick="location.reload()" style="font-size:22px;padding:14px 44px;">再玩一次</button>
+      <button class="btn-main" onclick="location.reload()" style="font-size:20px;padding:14px 44px;">再玩一次</button>
     </div>`;
   showScreen('result');
 
-  // 預估總秒數，更新進度條
+  if(recapShots.length === 0){
+    document.getElementById('videoArea').innerHTML = '<div style="font-size:13px;color:#bbb;padding:8px;">（本次沒有錯誤，沒有回顧影片）</div>';
+    return;
+  }
+
   const totalSecs = 2 + recapShots.length * 2 + 2;
   let elapsed = 0;
   const progInterval = setInterval(() => {
@@ -730,23 +767,20 @@ function showResult(){
     clearInterval(progInterval);
     const area = document.getElementById('videoArea');
     if (!area) return;
-
     if (!blob) {
       area.innerHTML = '<div style="font-size:13px;color:#bbb;padding:10px;">（此裝置不支援影片錄製）</div>';
       return;
     }
-
     const bar = document.getElementById('videoProgressBar');
     if(bar) bar.style.width = '100%';
-
     const url = URL.createObjectURL(blob);
     area.innerHTML = `
       <div style="background:#fff;border-radius:16px;padding:16px;box-shadow:0 2px 12px rgba(0,0,0,0.1);">
-        <div style="font-size:16px;font-weight:700;color:#333;margin-bottom:10px;">🎬 遊戲回顧影片</div>
+        <div style="font-size:15px;font-weight:700;color:#333;margin-bottom:10px;">🎬 錯誤回顧影片</div>
         <video src="${url}" controls playsinline loop
-          style="width:100%;border-radius:10px;margin-bottom:12px;max-height:220px;background:#000;"></video>
-        <a href="${url}" download="swether_遊戲回顧.webm"
-           style="display:block;background:linear-gradient(135deg,#f0a500,#e05500);color:#fff;font-size:20px;font-weight:900;padding:14px 0;border-radius:50px;text-decoration:none;letter-spacing:3px;">
+          style="width:100%;border-radius:10px;margin-bottom:12px;max-height:200px;background:#000;"></video>
+        <a href="${url}" download="swether_錯誤回顧.webm"
+           style="display:block;background:linear-gradient(135deg,#f0a500,#e05500);color:#fff;font-size:18px;font-weight:900;padding:14px 0;border-radius:50px;text-decoration:none;letter-spacing:3px;">
           ⬇ 下載影片
         </a>
       </div>`;
@@ -895,38 +929,41 @@ function stopBgm() {
 }
 
 // Patch handleCatch to play sounds
-const _origHandleCatch = handleCatch;
-// Override after definition - attach sounds inline
-// (sounds are called directly in handleCatch below, replacing the original)
-
 function handleCatch(food) {
   if(navigator.vibrate) navigator.vibrate(30);
   const px = food.x + food.size/2;
   const py = basket.y;
+
+  const isCorrect = (level===1 && food.type==='meat') ||
+                    (level===2 && food.type==='vegetable') ||
+                    (level===3 && food.type==='rice');
+  let result;
+
   if(food.health==='bad'){
-    score-=2; stats[level].bad++; bgState='bad';
+    result = 'bad';
+    score-=2; levelScores[level]-=2; stats[level].bad++; bgState='bad';
     playBad();
     spawnPopup('-2', '#ff2222', px, py);
-  } else if(
-    (level===1 && food.type==='meat') ||
-    (level===2 && food.type==='vegetable') ||
-    (level===3 && food.type==='rice')
-  ){
-    score+=2; stats[level].good++; bgState='good';
+  } else if(isCorrect){
+    result = 'good';
+    score+=2; levelScores[level]+=2; stats[level].good++; bgState='good';
     playGood();
     spawnPopup('+2', '#00cc44', px, py);
   } else {
-    score-=1; stats[level].bad++; bgState='wrong';
+    result = 'wrong';
+    score-=1; levelScores[level]-=1; stats[level].bad++; bgState='wrong';
     playWrong();
     spawnPopup('-1', '#ff8800', px, py);
   }
+
   if(bgTimeout) clearTimeout(bgTimeout);
   bgTimeout = setTimeout(()=>bgState='normal', 2000);
 
-  // 截圖在畫面更新後（背景已切換），延遲一幀讓 draw() 先跑
-  const _food = food, _result = food.health==='bad' ? 'bad' :
-    ((level===1&&food.type==='meat')||(level===2&&food.type==='vegetable')||(level===3&&food.type==='rice')) ? 'good' : 'wrong';
-  requestAnimationFrame(() => { draw(); captureShot(_food, _result); });
+  // 只截 bad / wrong，延遲一幀讓背景先切換
+  if(result !== 'good'){
+    const _food = food, _result = result;
+    requestAnimationFrame(() => { draw(); captureShot(_food, _result); });
+  }
 }
 
 // Patch showTransition to play level clear fanfare
@@ -970,6 +1007,7 @@ function startGame(){
   stopBgm();
   playBgm();
   resetRecap();
+  levelScores = {1:0, 2:0, 3:0};
   lastTime = 0;
   showScreen('gameCanvasContainer');
   prepareLevel();
