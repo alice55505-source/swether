@@ -899,7 +899,6 @@ const _origHandleCatch = handleCatch;
 // Override after definition - attach sounds inline
 // (sounds are called directly in handleCatch below, replacing the original)
 
-// Override handleCatch to add sounds
 function handleCatch(food) {
   if(navigator.vibrate) navigator.vibrate(30);
   const px = food.x + food.size/2;
@@ -908,7 +907,6 @@ function handleCatch(food) {
     score-=2; stats[level].bad++; bgState='bad';
     playBad();
     spawnPopup('-2', '#ff2222', px, py);
-    captureShot(food, 'bad');
   } else if(
     (level===1 && food.type==='meat') ||
     (level===2 && food.type==='vegetable') ||
@@ -917,15 +915,18 @@ function handleCatch(food) {
     score+=2; stats[level].good++; bgState='good';
     playGood();
     spawnPopup('+2', '#00cc44', px, py);
-    captureShot(food, 'good');
   } else {
     score-=1; stats[level].bad++; bgState='wrong';
     playWrong();
     spawnPopup('-1', '#ff8800', px, py);
-    captureShot(food, 'wrong');
   }
   if(bgTimeout) clearTimeout(bgTimeout);
   bgTimeout = setTimeout(()=>bgState='normal', 2000);
+
+  // 截圖在畫面更新後（背景已切換），延遲一幀讓 draw() 先跑
+  const _food = food, _result = food.health==='bad' ? 'bad' :
+    ((level===1&&food.type==='meat')||(level===2&&food.type==='vegetable')||(level===3&&food.type==='rice')) ? 'good' : 'wrong';
+  requestAnimationFrame(() => { draw(); captureShot(_food, _result); });
 }
 
 // Patch showTransition to play level clear fanfare
