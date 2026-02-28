@@ -458,6 +458,7 @@ function startGame(){
 }
 
 function prepareLevel(){
+  lastTime = 0;  // 重置，避免換關時第一幀 delta 過大
   foodQueue = [];
   const correct = allFoods.filter(f=>
     (level===1 && f.type==='meat' && f.health==='good') ||
@@ -476,7 +477,8 @@ function prepareLevel(){
 function spawnFood(){
   if(currentFood || foodQueue.length===0) return;
   const f = foodQueue.shift();
-  currentFood = {...f, x: Math.random()*(canvas.width-90)+10, y:0, size:72, speed: 1.8};
+  // 固定每秒落下 120px，與關卡和裝置幀率無關
+  currentFood = {...f, x: Math.random()*(canvas.width-90)+10, y:0, size:72, pxPerSec: 120};
 }
 
 function startTimer(){
@@ -494,9 +496,11 @@ function isColliding(food, basket){
   return fb >= basket.y && fb <= basket.y+30 && fx > basket.x+10 && fx < basket.x+basket.width-10;
 }
 
-function update(){
+let lastTime = 0;
+
+function update(delta){
   if(!currentFood) return;
-  currentFood.y += currentFood.speed;
+  currentFood.y += currentFood.pxPerSec * delta;
   if(isColliding(currentFood, basket)){
     handleCatch(currentFood);
     currentFood = null;
@@ -654,8 +658,10 @@ function draw(){
   drawPopups();
 }
 
-function loop(){
-  update(); draw();
+function loop(ts){
+  const delta = lastTime ? Math.min((ts - lastTime) / 1000, 0.1) : 0;
+  lastTime = ts;
+  update(delta); draw();
   if(level<=3) requestAnimationFrame(loop);
 }
 
@@ -681,6 +687,7 @@ function showTransition(){
 
 function nextLevelStart(){
   level++;
+  lastTime = 0;
   updateK1Screen(level);
   showScreen('K1Transition');
 }
@@ -962,9 +969,10 @@ function startGame(){
   stopBgm();
   playBgm();
   resetRecap();
+  lastTime = 0;
   showScreen('gameCanvasContainer');
   prepareLevel();
-  loop();
+  requestAnimationFrame(loop);
 }
 </script>
 </body>
