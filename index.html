@@ -167,7 +167,7 @@ const ctx = canvas.getContext('2d');
 let level = 1, score = 0;
 let levelScores = {1:0, 2:0, 3:0}; // 每關得分
 let currentFood = null, foodQueue = [];
-let stats = {1:{good:0,bad:0},2:{good:0,bad:0},3:{good:0,bad:0}};
+let stats = {1:{good:0,bad:0,wrong:0},2:{good:0,bad:0,wrong:0},3:{good:0,bad:0,wrong:0}};
 let orientationAllowed = false;
 
 // ===== GAME RECAP (截圖→幻燈片影片) =====
@@ -722,18 +722,37 @@ function showResult(){
       <img src="${resultImg}" style="width:60%;max-width:240px;border-radius:16px;margin-bottom:12px;box-shadow:0 4px 20px rgba(0,0,0,0.2);">
       <div style="font-size:20px;font-weight:700;color:#333;margin-bottom:10px;">${msg}</div>
 
-      <div style="background:#fff;border-radius:16px;padding:14px 20px;width:100%;max-width:360px;margin-bottom:14px;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
-        <div style="font-size:14px;color:#aaa;margin-bottom:8px;">各關分數</div>
-        <div style="display:flex;justify-content:space-around;align-items:center;">
-          <div><div style="font-size:13px;color:#888;">第一關🥩</div><div style="font-size:32px;font-weight:900;color:${lvlColor(levelScores[1])};">${levelScores[1]>0?'+':''}${levelScores[1]}</div></div>
-          <div style="font-size:20px;color:#ddd;">|</div>
-          <div><div style="font-size:13px;color:#888;">第二關🥦</div><div style="font-size:32px;font-weight:900;color:${lvlColor(levelScores[2])};">${levelScores[2]>0?'+':''}${levelScores[2]}</div></div>
-          <div style="font-size:20px;color:#ddd;">|</div>
-          <div><div style="font-size:13px;color:#888;">第三關🍠</div><div style="font-size:32px;font-weight:900;color:${lvlColor(levelScores[3])};">${levelScores[3]>0?'+':''}${levelScores[3]}</div></div>
+      <div style="background:#fff;border-radius:16px;padding:14px 16px;width:100%;max-width:360px;margin-bottom:14px;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+        <div style="font-size:14px;color:#aaa;margin-bottom:10px;">各關成績</div>
+        ${[1,2,3].map(lv => {
+          const icons = {1:'🥩',2:'🥦',3:'🍠'};
+          const names = {1:'蛋白質',2:'蔬菜',3:'澱粉'};
+          const s = stats[lv];
+          const sc = levelScores[lv];
+          return `
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 0;${lv<3?'border-bottom:1px solid #f0f0f0':''}">
+            <div style="font-size:22px;">${icons[lv]}</div>
+            <div style="flex:1;text-align:left;">
+              <div style="font-size:13px;color:#888;margin-bottom:3px;">第${lv}關 ${names[lv]}</div>
+              <div style="display:flex;gap:8px;font-size:13px;">
+                <span style="color:#22bb55;font-weight:700;">✓ ${s.good}</span>
+                <span style="color:#ee2222;font-weight:700;">✗ ${s.bad}</span>
+                <span style="color:#ff8800;font-weight:700;">△ ${s.wrong}</span>
+              </div>
+            </div>
+            <div style="font-size:26px;font-weight:900;color:${lvlColor(sc)};min-width:48px;text-align:right;">${sc>0?'+':''}${sc}</div>
+          </div>`;
+        }).join('')}
+        <div style="border-top:2px solid #eee;margin-top:10px;padding-top:10px;display:flex;justify-content:space-between;align-items:center;">
+          <div style="display:flex;gap:12px;font-size:13px;">
+            <span style="color:#22bb55;font-weight:700;">✓ ${stats[1].good+stats[2].good+stats[3].good} 正確</span>
+            <span style="color:#ee2222;font-weight:700;">✗ ${stats[1].bad+stats[2].bad+stats[3].bad} 不健康</span>
+            <span style="color:#ff8800;font-weight:700;">△ ${stats[1].wrong+stats[2].wrong+stats[3].wrong} 順序錯</span>
+          </div>
         </div>
-        <div style="border-top:1px solid #eee;margin-top:10px;padding-top:10px;">
-          <span style="font-size:15px;color:#888;">總分</span>
-          <span style="font-size:40px;font-weight:900;color:#e05500;margin-left:12px;">${score} 分</span>
+        <div style="text-align:right;margin-top:6px;">
+          <span style="font-size:14px;color:#888;">總分</span>
+          <span style="font-size:38px;font-weight:900;color:#e05500;margin-left:8px;">${score} 分</span>
         </div>
       </div>
 
@@ -951,7 +970,7 @@ function handleCatch(food) {
     spawnPopup('+2', '#00cc44', px, py);
   } else {
     result = 'wrong';
-    score-=1; levelScores[level]-=1; stats[level].bad++; bgState='wrong';
+    score-=1; levelScores[level]-=1; stats[level].wrong++; bgState='wrong';
     playWrong();
     spawnPopup('-1', '#ff8800', px, py);
   }
@@ -1008,6 +1027,7 @@ function startGame(){
   playBgm();
   resetRecap();
   levelScores = {1:0, 2:0, 3:0};
+  stats = {1:{good:0,bad:0,wrong:0},2:{good:0,bad:0,wrong:0},3:{good:0,bad:0,wrong:0}};
   lastTime = 0;
   showScreen('gameCanvasContainer');
   prepareLevel();
