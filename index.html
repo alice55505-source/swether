@@ -132,7 +132,7 @@
       <div class="k1-level-icon" id="k1LevelIcon">🥩</div>
       <div class="k1-level-text" id="k1LevelText">只吃<br>健康蛋白質</div>
     </div>
-    <button class="btn-main" onclick="startGame()" style="font-size:26px;padding:18px 50px;">開 始</button>
+    <button class="btn-main" onclick="startLevelGame()" style="font-size:26px;padding:18px 50px;">開 始</button>
   </div>
 </div>
 
@@ -466,8 +466,7 @@ canvas.addEventListener('mousemove', e=>{
 });
 
 function goToK1(){
-  updateK1Screen(1);
-  showScreen('K1Transition');
+  startGame();
 }
 
 function updateK1Screen(lv){
@@ -480,11 +479,7 @@ function updateK1Screen(lv){
 }
 
 // ===== GAME =====
-function startGame(){
-  showScreen('gameCanvasContainer');
-  prepareLevel();
-  loop();
-}
+// startGame is defined later near the audio section
 
 function prepareLevel(){
   lastTime = 0;  // 重置，避免換關時第一幀 delta 過大
@@ -540,9 +535,7 @@ function update(delta){
   }
 }
 
-function handleCatch_placeholder_removed(food){
-  // removed - see full handleCatch near Web Audio section
-}
+
 
 // ===== DRAW =====
 // Preloaded bg images
@@ -674,38 +667,34 @@ function draw(){
   drawPopups();
 }
 
+let gameRunning = false;
+
 function loop(ts){
   const delta = lastTime ? Math.min((ts - lastTime) / 1000, 0.1) : 0;
   lastTime = ts;
   update(delta); draw();
-  if(level<=3) requestAnimationFrame(loop);
+  if(gameRunning) requestAnimationFrame(loop);
 }
 
 // ===== TRANSITIONS =====
-function showTransition(){
-  clearInterval(timerInterval);
-  if(level<3){
-    // Show between level screen
-    const bwl = document.getElementById('betweenLevel');
-    bwl.innerHTML = `
-      <div onclick="nextLevelStart()" style="width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;background:#fef3e2;cursor:pointer;padding:30px;">
-        <div style="font-size:80px;margin-bottom:16px;">${level===1?'🥦':'🍚'}</div>
-        <div style="font-size:28px;font-weight:900;color:#333;text-align:center;margin-bottom:8px;">第${level}關完成！</div>
-        <div style="font-size:20px;color:#888;margin-bottom:8px;">目前分數: <span style="color:#e05500;font-weight:900;">${score}</span></div>
-        <div style="font-size:16px;color:#999;margin-bottom:40px;">點擊繼續下一關</div>
-        <button class="btn-main" style="font-size:24px;padding:16px 40px;">繼 續</button>
-      </div>`;
-    showScreen('betweenLevel');
-  } else {
-    showResult();
-  }
-}
+// showTransition is defined later with level clear fanfare
 
 function nextLevelStart(){
   level++;
   lastTime = 0;
   updateK1Screen(level);
   showScreen('K1Transition');
+}
+
+// Called when player taps Start on K1 transition screen
+function startLevelGame(){
+  lastTime = 0;
+  showScreen('gameCanvasContainer');
+  prepareLevel();
+  if(!gameRunning){
+    gameRunning = true;
+    requestAnimationFrame(loop);
+  }
 }
 
 function showResult(){
@@ -985,8 +974,7 @@ function handleCatch(food) {
   }
 }
 
-// Patch showTransition to play level clear fanfare
-const _origShowTransition = showTransition;
+// showTransition with level clear fanfare
 function showTransition(){
   clearInterval(timerInterval);
   playLevelClear();
@@ -1021,16 +1009,18 @@ window.addEventListener('load', ()=>{
 });
 
 // Start BGM when game begins (after user gesture)
-const _origStartGame = startGame;
 function startGame(){
   stopBgm();
   playBgm();
   resetRecap();
+  level = 1;
+  score = 0;
   levelScores = {1:0, 2:0, 3:0};
   stats = {1:{good:0,bad:0,wrong:0},2:{good:0,bad:0,wrong:0},3:{good:0,bad:0,wrong:0}};
   lastTime = 0;
-  showScreen('gameCanvasContainer');
-  prepareLevel();
+  gameRunning = true;
+  updateK1Screen(1);
+  showScreen('K1Transition');
   requestAnimationFrame(loop);
 }
 </script>
