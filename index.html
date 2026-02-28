@@ -96,7 +96,7 @@
         <div class="level-icon">🥩</div>
         <div class="level-info">
           <div class="level-num">第一關</div>
-          <div class="level-name">只吃健康蛋白質</div>
+          <div class="level-name">只吃優質蛋白質</div>
         </div>
       </div>
       <div class="level-item l2">
@@ -110,7 +110,7 @@
         <div class="level-icon">🍚</div>
         <div class="level-info">
           <div class="level-num">第三關</div>
-          <div class="level-name">只吃健康的澱粉</div>
+          <div class="level-name">只吃優質澱粉</div>
         </div>
       </div>
     </div>
@@ -208,28 +208,55 @@ let bgTimeout = null;
 
 // Floating score popups
 let popups = [];
-let levelTime = 90, timeLeft = 90, timerInterval = null;
+let levelTime = 60, timeLeft = 60, timerInterval = null;
 
 const basket = { x: 0, y: 0, width: 130, height: 90 };
 
 // Food emojis  
 const allFoods = [
-  {emoji:"🥩",label:"牛排",type:"meat",health:"good"},
-  {emoji:"🍗",label:"雞腿",type:"meat",health:"good"},
+  // 優質蛋白 - 植物性
+  {emoji:"🧈",label:"豆腐",type:"meat",health:"good"},
+  {emoji:"🫘",label:"豆乾",type:"meat",health:"good"},
+  // 優質蛋白 - 海鮮
+  {emoji:"🐟",label:"鮭魚",type:"meat",health:"good"},
+  {emoji:"🦐",label:"蝦子",type:"meat",health:"good"},
+  {emoji:"🐠",label:"旗魚",type:"meat",health:"good"},
+  // 優質蛋白 - 肉/蛋
+  {emoji:"🍗",label:"雞肉",type:"meat",health:"good"},
   {emoji:"🥚",label:"雞蛋",type:"meat",health:"good"},
-  {emoji:"🐟",label:"魚",type:"meat",health:"good"},
-  {emoji:"🥓",label:"培根",type:"meat",health:"bad"},
+  {emoji:"🥩",label:"瘦牛肉",type:"meat",health:"good"},
+  // 優質蛋白 - 乳製品
+  {emoji:"🥛",label:"鮮乳",type:"meat",health:"good"},
+  {emoji:"🍶",label:"優格",type:"meat",health:"good"},
+  // 壞蛋白（不健康）
   {emoji:"🌭",label:"熱狗",type:"meat",health:"bad"},
+  {emoji:"🍔",label:"漢堡",type:"meat",health:"bad"},
+  {emoji:"🥓",label:"培根",type:"meat",health:"bad"},
+
+  // 優質蔬菜
   {emoji:"🥦",label:"花椰菜",type:"vegetable",health:"good"},
   {emoji:"🥕",label:"紅蘿蔔",type:"vegetable",health:"good"},
   {emoji:"🥬",label:"青菜",type:"vegetable",health:"good"},
   {emoji:"🍅",label:"番茄",type:"vegetable",health:"good"},
   {emoji:"🫑",label:"青椒",type:"vegetable",health:"good"},
-  {emoji:"🍚",label:"白飯",type:"rice",health:"good"},
+  {emoji:"🧅",label:"洋蔥",type:"vegetable",health:"good"},
+  {emoji:"🥒",label:"小黃瓜",type:"vegetable",health:"good"},
+  // 壞蔬菜類
+  {emoji:"🍟",label:"薯條",type:"vegetable",health:"bad"},
+  {emoji:"🧂",label:"醃菜",type:"vegetable",health:"bad"},
+
+  // 優質澱粉
   {emoji:"🍠",label:"地瓜",type:"rice",health:"good"},
-  {emoji:"🍟",label:"薯條",type:"rice",health:"bad"},
+  {emoji:"🥔",label:"馬鈴薯",type:"rice",health:"good"},
+  {emoji:"🎃",label:"南瓜",type:"rice",health:"good"},
+  {emoji:"🌽",label:"玉米",type:"rice",health:"good"},
+  {emoji:"🌾",label:"燕麥",type:"rice",health:"good"},
+  {emoji:"🍚",label:"糙米",type:"rice",health:"good"},
+  // 壞澱粉
   {emoji:"🍰",label:"蛋糕",type:"rice",health:"bad"},
+  {emoji:"🍩",label:"甜甜圈",type:"rice",health:"bad"},
   {emoji:"🧁",label:"杯子蛋糕",type:"rice",health:"bad"},
+  {emoji:"🍪",label:"餅乾",type:"rice",health:"bad"},
 ];
 
 function resizeCanvas(){
@@ -331,7 +358,7 @@ function prepareLevel(){
 function spawnFood(){
   if(currentFood || foodQueue.length===0) return;
   const f = foodQueue.shift();
-  currentFood = {...f, x: Math.random()*(canvas.width-80)+10, y:0, size:70, speed: 1.5+level*0.2};
+  currentFood = {...f, x: Math.random()*(canvas.width-90)+10, y:0, size:72, speed: 1.8};
 }
 
 function startTimer(){
@@ -438,6 +465,15 @@ function drawFood(){
   ctx.font = `${currentFood.size}px serif`;
   ctx.textAlign = 'center';
   ctx.fillText(currentFood.emoji, currentFood.x + currentFood.size/2, currentFood.y + currentFood.size);
+  // Label below emoji
+  ctx.font = 'bold 18px Noto Sans TC, sans-serif';
+  ctx.fillStyle = '#fff';
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 3;
+  const lx = currentFood.x + currentFood.size/2;
+  const ly = currentFood.y + currentFood.size + 22;
+  ctx.strokeText(currentFood.label, lx, ly);
+  ctx.fillText(currentFood.label, lx, ly);
 }
 
 function drawHUD(){
@@ -457,7 +493,7 @@ function drawHUD(){
   ctx.fillStyle = '#333';
   ctx.font = 'bold 18px Noto Sans TC, sans-serif';
   ctx.textAlign = 'center';
-  const goals = {1:'🥩 本關目標：只吃健康蛋白質',2:'🥦 本關目標：只吃新鮮蔬菜',3:'🍚 本關目標：只吃健康澱粉'};
+  const goals = {1:'🥩 本關目標：只吃優質蛋白質',2:'🥦 本關目標：只吃新鮮蔬菜',3:'🍠 本關目標：只吃優質澱粉'};
   ctx.fillText(goals[level]||'', canvas.width/2, 97);
 }
 
