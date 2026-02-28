@@ -169,38 +169,156 @@ let currentFood = null, foodQueue = [];
 let stats = {1:{good:0,bad:0},2:{good:0,bad:0},3:{good:0,bad:0}};
 let orientationAllowed = false;
 
-// ===== VIDEO RECORDING =====
-let mediaRecorder = null;
-let recordedChunks = [];
-let recordingBlob = null;
+// ===== GAME RECAP (截圖→幻燈片影片) =====
+let recapShots = [];
 
-function startRecording() {
+function captureShot(food, result) {
   try {
-    recordedChunks = [];
-    recordingBlob = null;
-    const stream = canvas.captureStream(30);
-    const mimeType = ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm','video/mp4']
-      .find(m => MediaRecorder.isTypeSupported(m)) || 'video/webm';
-    mediaRecorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 2500000 });
-    mediaRecorder.ondataavailable = e => { if(e.data && e.data.size > 0) recordedChunks.push(e.data); };
-    mediaRecorder.onstop = () => {
-      recordingBlob = new Blob(recordedChunks, { type: mimeType });
-    };
-    mediaRecorder.start(200);
-    console.log('Recording started:', mimeType);
-  } catch(e) {
-    console.warn('Recording not supported:', e);
-  }
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+    recapShots.push({ dataUrl, emoji: food.emoji, label: food.label, result, score, level });
+  } catch(e) {}
 }
 
-function stopRecording() {
-  return new Promise(resolve => {
-    if (!mediaRecorder || mediaRecorder.state === 'inactive') { resolve(); return; }
-    mediaRecorder.onstop = () => {
-      recordingBlob = new Blob(recordedChunks, { type: mediaRecorder.mimeType });
-      resolve();
-    };
-    mediaRecorder.stop();
+function resetRecap() { recapShots = []; }
+
+// 把截圖陣列渲染成幻燈片影片，回傳 Blob URL
+async function buildSlideshowVideo() {
+  if (recapShots.length === 0) return null;
+
+  return new Promise(async (resolve) => {
+    // 建立離屏 canvas，尺寸與遊戲 canvas 相同
+    const W = canvas.width, H = canvas.height;
+    const oc = document.createElement('canvas');
+    oc.width = W; oc.height = H;
+    const ox = oc.getContext('2d');
+
+    // 預載所有截圖
+    const imgs = await Promise.all(recapShots.map(shot =>
+      new Promise(res => {
+        const img = new Image();
+        img.onload = () => res(img);
+        img.onerror = () => res(null);
+        img.src = shot.dataUrl;
+      })
+    ));
+
+    // 嘗試啟動 MediaRecorder 錄製離屏 canvas
+    const mimeType = ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm']
+      .find(m => { try { return MediaRecorder.isTypeSupported(m); } catch(e){ return false; } }) || '';
+
+    if (!mimeType) { resolve(null); return; }
+
+    let stream;
+    try { stream = oc.captureStream(30); } catch(e) { resolve(null); return; }
+
+    const chunks = [];
+    const mr = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 3000000 });
+    mr.ondataavailable = e => { if(e.data?.size > 0) chunks.push(e.data); };
+    mr.onstop = () => resolve(new Blob(chunks, { type: mimeType }));
+    mr.start();
+
+    const FPS = 30;
+    const SLIDE_FRAMES = FPS * 2;      // 每張截圖顯示 2 秒
+    const FADE_FRAMES  = Math.round(FPS * 0.4); // 淡入淡出 0.4 秒
+    const TITLE_FRAMES = FPS * 2;      // 片頭 2 秒
+    const END_FRAMES   = FPS * 2;      // 片尾 2 秒
+
+    const resultColors = { good:'#22cc55', bad:'#ee2222', wrong:'#ff8800' };
+    const resultText   = { good:'✓ 吃對了！', bad:'✗ 不健康！', wrong:'△ 順序錯誤！' };
+
+    function drawSlide(imgEl, shot, alpha) {
+      ox.clearRect(0, 0, W, H);
+      // 背景
+      ox.fillStyle = '#111'; ox.fillRect(0, 0, W, H);
+      // 截圖
+      if (imgEl) { ox.globalAlpha = alpha; ox.drawImage(imgEl, 0, 0, W, H); }
+      // 半透明底部條
+      ox.globalAlpha = alpha * 0.82;
+      const barH = 110;
+      ox.fillStyle = '#000'; ox.fillRect(0, H - barH, W, barH);
+      // 結果文字
+      ox.globalAlpha = alpha;
+      const col = resultColors[shot.result] || '#fff';
+      ox.fillStyle = col;
+      ox.font = `bold ${Math.round(W * 0.09)}px sans-serif`;
+      ox.textAlign = 'center';
+      ox.fillText(`${shot.emoji} ${shot.label}`, W/2, H - barH + 42);
+      ox.fillStyle = '#fff';
+      ox.font = `bold ${Math.round(W * 0.07)}px sans-serif`;
+      ox.fillText(resultText[shot.result] || '', W/2, H - barH + 90);
+      ox.globalAlpha = 1;
+    }
+
+    function drawTitle(alpha) {
+      ox.clearRect(0, 0, W, H);
+      const g = ox.createLinearGradient(0,0,0,H);
+      g.addColorStop(0,'#fef3e2'); g.addColorStop(1,'#f5c87a');
+      ox.fillStyle = g; ox.fillRect(0, 0, W, H);
+      ox.globalAlpha = alpha;
+      ox.fillStyle = '#e05500';
+      ox.font = `bold ${Math.round(W*0.13)}px sans-serif`;
+      ox.textAlign = 'center';
+      ox.fillText('🎮 遊戲回顧', W/2, H*0.42);
+      ox.fillStyle = '#555';
+      ox.font = `${Math.round(W*0.07)}px sans-serif`;
+      ox.fillText(`最終得分：${score} 分`, W/2, H*0.56);
+      ox.fillStyle = '#aaa';
+      ox.font = `${Math.round(W*0.05)}px sans-serif`;
+      ox.fillText('Swether 營養接接樂', W/2, H*0.67);
+      ox.globalAlpha = 1;
+    }
+
+    function drawEnd(alpha) {
+      ox.clearRect(0, 0, W, H);
+      const g = ox.createLinearGradient(0,0,0,H);
+      g.addColorStop(0,'#fef3e2'); g.addColorStop(1,'#f5c87a');
+      ox.fillStyle = g; ox.fillRect(0, 0, W, H);
+      ox.globalAlpha = alpha;
+      ox.fillStyle = '#e05500';
+      ox.font = `bold ${Math.round(W*0.1)}px sans-serif`;
+      ox.textAlign = 'center';
+      ox.fillText('🏁 遊戲結束', W/2, H*0.43);
+      ox.fillStyle = '#333';
+      ox.font = `bold ${Math.round(W*0.18)}px sans-serif`;
+      ox.fillText(`${score} 分`, W/2, H*0.58);
+      ox.fillStyle = '#aaa';
+      ox.font = `${Math.round(W*0.05)}px sans-serif`;
+      ox.fillText('Swether 營養接接樂', W/2, H*0.68);
+      ox.globalAlpha = 1;
+    }
+
+    // 逐幀渲染
+    async function renderFrames() {
+      const delay = ms => new Promise(r => setTimeout(r, ms));
+      const frameMs = 1000 / FPS;
+
+      // 片頭
+      for (let f = 0; f < TITLE_FRAMES; f++) {
+        const a = f < FADE_FRAMES ? f/FADE_FRAMES : (f > TITLE_FRAMES-FADE_FRAMES ? (TITLE_FRAMES-f)/FADE_FRAMES : 1);
+        drawTitle(a);
+        await delay(frameMs);
+      }
+
+      // 每張截圖
+      for (let i = 0; i < recapShots.length; i++) {
+        for (let f = 0; f < SLIDE_FRAMES; f++) {
+          const a = f < FADE_FRAMES ? f/FADE_FRAMES : (f > SLIDE_FRAMES-FADE_FRAMES ? (SLIDE_FRAMES-f)/FADE_FRAMES : 1);
+          drawSlide(imgs[i], recapShots[i], a);
+          await delay(frameMs);
+        }
+      }
+
+      // 片尾
+      for (let f = 0; f < END_FRAMES; f++) {
+        const a = f < FADE_FRAMES ? f/FADE_FRAMES : (f > END_FRAMES-FADE_FRAMES ? (END_FRAMES-f)/FADE_FRAMES : 1);
+        drawEnd(a);
+        await delay(frameMs);
+      }
+
+      mr.stop();
+    }
+
+    renderFrames();
   });
 }
 let bgState = 'normal'; // normal, good, bad, wrong
@@ -574,34 +692,53 @@ function showResult(){
   const resultImg = score>=20 ? IMGS.haojiankan : score>=10 ? IMGS.yeye : IMGS.taibujiankan;
   const msg = score>=20 ? '太棒了！爺爺好健康！' : score>=10 ? '不錯喔，繼續加油！' : '需要多練習喔！';
 
-  // Show result screen first
   el.innerHTML = `
     <div style="width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;background:#fef3e2;padding:24px;text-align:center;overflow-y:auto;">
       <img src="${resultImg}" style="width:70%;max-width:280px;border-radius:16px;margin-bottom:16px;box-shadow:0 4px 20px rgba(0,0,0,0.2);">
       <div style="font-size:22px;font-weight:700;color:#333;margin-bottom:6px;">${msg}</div>
       <div style="font-size:64px;font-weight:900;color:#e05500;text-shadow:2px 2px 0 rgba(0,0,0,0.1);margin-bottom:20px;">${score} 分</div>
       <div id="videoArea" style="width:100%;max-width:360px;margin-bottom:16px;">
-        <div style="font-size:15px;color:#aaa;padding:10px;">🎬 影片處理中...</div>
+        <div style="background:#fff;border-radius:16px;padding:16px;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+          <div style="font-size:16px;color:#888;margin-bottom:8px;">🎬 正在製作回顧影片…</div>
+          <div id="videoProgress" style="height:8px;background:#eee;border-radius:4px;overflow:hidden;">
+            <div id="videoProgressBar" style="height:100%;width:0%;background:linear-gradient(90deg,#f0a500,#e05500);transition:width 0.3s;"></div>
+          </div>
+        </div>
       </div>
       <button class="btn-main" onclick="location.reload()" style="font-size:22px;padding:14px 44px;">再玩一次</button>
     </div>`;
   showScreen('result');
 
-  // Stop recording and build download link
-  stopRecording().then(() => {
+  // 預估總秒數，更新進度條
+  const totalSecs = 2 + recapShots.length * 2 + 2;
+  let elapsed = 0;
+  const progInterval = setInterval(() => {
+    elapsed += 0.25;
+    const pct = Math.min(95, (elapsed / totalSecs) * 100);
+    const bar = document.getElementById('videoProgressBar');
+    if(bar) bar.style.width = pct + '%';
+  }, 250);
+
+  buildSlideshowVideo().then(blob => {
+    clearInterval(progInterval);
     const area = document.getElementById('videoArea');
     if (!area) return;
-    if (!recordingBlob || recordingBlob.size < 5000) {
-      area.innerHTML = '<div style="font-size:13px;color:#bbb;">（此裝置不支援影片錄製）</div>';
+
+    if (!blob) {
+      area.innerHTML = '<div style="font-size:13px;color:#bbb;padding:10px;">（此裝置不支援影片錄製）</div>';
       return;
     }
-    const url = URL.createObjectURL(recordingBlob);
-    const ext = recordingBlob.type.includes('mp4') ? 'mp4' : 'webm';
+
+    const bar = document.getElementById('videoProgressBar');
+    if(bar) bar.style.width = '100%';
+
+    const url = URL.createObjectURL(blob);
     area.innerHTML = `
       <div style="background:#fff;border-radius:16px;padding:16px;box-shadow:0 2px 12px rgba(0,0,0,0.1);">
         <div style="font-size:16px;font-weight:700;color:#333;margin-bottom:10px;">🎬 遊戲回顧影片</div>
-        <video src="${url}" controls playsinline style="width:100%;border-radius:10px;margin-bottom:12px;max-height:200px;background:#000;"></video>
-        <a href="${url}" download="swether_遊戲回顧.${ext}"
+        <video src="${url}" controls playsinline loop
+          style="width:100%;border-radius:10px;margin-bottom:12px;max-height:220px;background:#000;"></video>
+        <a href="${url}" download="swether_遊戲回顧.webm"
            style="display:block;background:linear-gradient(135deg,#f0a500,#e05500);color:#fff;font-size:20px;font-weight:900;padding:14px 0;border-radius:50px;text-decoration:none;letter-spacing:3px;">
           ⬇ 下載影片
         </a>
@@ -764,6 +901,7 @@ function handleCatch(food) {
     score-=2; stats[level].bad++; bgState='bad';
     playBad();
     spawnPopup('-2', '#ff2222', px, py);
+    captureShot(food, 'bad');
   } else if(
     (level===1 && food.type==='meat') ||
     (level===2 && food.type==='vegetable') ||
@@ -772,10 +910,12 @@ function handleCatch(food) {
     score+=2; stats[level].good++; bgState='good';
     playGood();
     spawnPopup('+2', '#00cc44', px, py);
+    captureShot(food, 'good');
   } else {
     score-=1; stats[level].bad++; bgState='wrong';
     playWrong();
     spawnPopup('-1', '#ff8800', px, py);
+    captureShot(food, 'wrong');
   }
   if(bgTimeout) clearTimeout(bgTimeout);
   bgTimeout = setTimeout(()=>bgState='normal', 2000);
@@ -821,7 +961,7 @@ const _origStartGame = startGame;
 function startGame(){
   stopBgm();
   playBgm();
-  startRecording();
+  resetRecap();
   showScreen('gameCanvasContainer');
   prepareLevel();
   loop();
