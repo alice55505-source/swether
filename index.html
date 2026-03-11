@@ -36,7 +36,9 @@
     "></div>
 
     <div id="home" class="screen active" onclick="playSfx('click'); showScreen('intro', 'intro')"><button class="btn"></button></div>
-    <div id="intro" class="screen" onclick="playSfx('click'); startLevel(1)"><button class="btn"></button></div>
+    <div id="intro" class="screen">
+        <button id="startBtn" class="btn" disabled style="opacity:0; cursor:not-allowed;"></button>
+    </div>
     <div id="gameContainer" class="screen"><div id="game-tips"><span class="title"></span><span class="subtitle"></span></div><canvas id="gameCanvas"></canvas></div>
     <div id="betweenLevel" class="screen"><button class="btn" onclick="onBetweenLevelClick()"></button></div>
     <div id="result" class="screen">
@@ -75,7 +77,19 @@
             const files = {
                 click: 'click.mp3', catch: 'catch.mp3', wrong: 'wrong.mp3',
                 bad: 'bad.mp3', good: 'good.mp3',
-                perfect: 'perfect.mp3', normal: 'normal.mp3', ended: 'ended.mp3'
+                perfect: 'perfect.mp3', normal: 'normal.mp3', ended: 'ended.mp3',
+                voice_intro:   'voice_intro.mp3',
+                voice_k1:      'voice_k1.mp3',
+                voice_k2:      'voice_k2.mp3',
+                voice_k3:      'voice_k3.mp3',
+                voice_good1:   'voice_good1.mp3',
+                voice_good2:   'voice_good2.mp3',
+                voice_bad1:    'voice_bad1.mp3',
+                voice_wrong1:  'voice_wrong1.mp3',
+                voice_wrong2:  'voice_wrong2.mp3',
+                voice_perfect: 'voice__perfect.mp3',
+                voice_normal:  'voice_normal.mp3',
+                voice_ended:   'voice_ended.mp3'
             };
             await Promise.all(Object.entries(files).map(async ([key, file]) => {
                 try {
@@ -121,65 +135,29 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
-        async function speak(text) {
-            try {
-                const res = await fetch("https://api.fish.audio/v1/tts", {
-                    method: "POST",
-                    headers: { "Authorization": `Bearer ${FISH_KEY}`, "Content-Type": "application/json" },
-                    body: JSON.stringify({ text: text, reference_id: VOICE_ID, format: "mp3" })
-                });
-                const blob = await res.blob();
-                const audio = new Audio(URL.createObjectURL(blob));
-                audio.play();
-            } catch (e) { console.log("語音暫時不可用"); }
+        // speak() 現在直接播放預錄音檔，不再呼叫 Fish Audio
+        function speak(sfxKey) {
+            if (sfxKey) playSfx(sfxKey, 1.0);
         }
 
-        async function testVoice() {
+        function testVoice() {
             const btn = document.getElementById('voiceTestBtn');
             const result = document.getElementById('voiceTestResult');
-            btn.textContent = '⏳ 測試中...';
             result.style.display = 'block';
-            result.style.background = 'rgba(255,255,255,0.95)';
-            result.textContent = '正在連線 Fish Audio...';
-
-            try {
-                const res = await fetch("https://api.fish.audio/v1/tts", {
-                    method: "POST",
-                    headers: {
-                        "Authorization": `Bearer ${FISH_KEY}`,
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                        text: "語音測試成功！衛教語音正常運作。",
-                        reference_id: VOICE_ID,
-                        format: "mp3"
-                    })
-                });
-
-                if (!res.ok) {
-                    const errText = await res.text();
-                    throw new Error(`HTTP ${res.status}: ${errText}`);
-                }
-
-                const blob = await res.blob();
-                const audio = new Audio(URL.createObjectURL(blob));
-                audio.play();
-
-                btn.innerHTML = '✅ 語音正常';
+            if (sfxBuffers['voice_intro']) {
+                playSfx('voice_intro');
+                btn.innerHTML = '✅ 播放中';
                 result.style.background = 'rgba(220,255,220,0.97)';
-                result.textContent = '✅ Fish Audio 連線成功！語音播放中...';
-            } catch (e) {
-                btn.innerHTML = '❌ 語音失敗';
+                result.textContent = '✅ 語音正常！正在播放 voice_intro';
+            } else {
+                btn.innerHTML = '❌ 未載入';
                 result.style.background = 'rgba(255,220,220,0.97)';
-                result.textContent = '❌ 失敗原因：' + e.message;
-                console.error('語音測試失敗', e);
+                result.textContent = '❌ 音檔尚未載入，請稍後再試';
             }
-
-            // 5秒後恢復按鈕
             setTimeout(() => {
                 btn.innerHTML = '🔊 語音測試';
                 result.style.display = 'none';
-            }, 6000);
+            }, 5000);
         }
 
         function showScreen(id, bgKey) {
@@ -187,6 +165,32 @@
             const target = document.getElementById(id);
             if (bgKey) target.style.backgroundImage = `url('${BG_MAP[bgKey]}')`;
             target.classList.add('active');
+
+            // intro 頁：播 voice_intro，播完解鎖開始按鈕
+            if (id === 'intro') {
+                const btn = document.getElementById('startBtn');
+                btn.disabled = true;
+                btn.style.opacity = '0';
+                btn.style.cursor = 'not-allowed';
+                btn.onclick = null;
+
+                // 等音檔確保載入後播放
+                const tryPlay = () => {
+                    if (!sfxBuffers['voice_intro']) {
+                        setTimeout(tryPlay, 300);
+                        return;
+                    }
+                    const duration = sfxBuffers['voice_intro'].duration * 1000;
+                    playSfx('voice_intro');
+                    setTimeout(() => {
+                        btn.disabled = false;
+                        btn.style.opacity = '1';
+                        btn.style.cursor = 'pointer';
+                        btn.onclick = () => { playSfx('click'); startLevel(1); };
+                    }, duration + 300);
+                };
+                setTimeout(tryPlay, 200);
+            }
         }
 
         function initGame() {
@@ -249,13 +253,8 @@
             document.querySelector('#game-tips .title').textContent   = tipTitles[currentLevel];
             document.querySelector('#game-tips .subtitle').textContent = tipSubs[currentLevel];
 
-            const levelSpeeches = [
-                "",
-                "第一關！請切蛋白質食物，像是雞肉、魚、雞蛋、豆腐。優質蛋白質幫助長肌肉、修復身體！",
-                "第二關！請切蔬菜食物，像是花椰菜、紅蘿蔔、番茄。蔬菜富含纖維，幫助消化好順暢！",
-                "第三關！請切健康澱粉，像是地瓜、糙米、南瓜。好的澱粉提供持久能量，讓身體有力氣！"
-            ];
-            speak(levelSpeeches[currentLevel]);
+            const levelVoiceKeys = ["", "voice_k1", "voice_k2", "voice_k3"];
+            speak(levelVoiceKeys[currentLevel]);
 
             gameItems = [];
             slashPoints = [];
@@ -477,8 +476,7 @@
                             setGameBg(3);
                             playSfx('bad');
                             if (Math.random() < 0.4) {
-                                const warns = ["這個不健康喔！","炸的食物要少吃！","加工食品要避免！"];
-                                speak(warns[Math.floor(Math.random() * warns.length)]);
+                                speak('voice_bad1');
                             }
                         } else {
                             spawnFloatingText(it.x, it.y - 70, "-10 ⚠️", "#e67e22");
@@ -486,8 +484,8 @@
                             setGameBg(2);
                             playSfx('wrong');
                             if (Math.random() < 0.35) {
-                                const hints = ["這關不需要這個喔！","記住本關目標！","這是其他關的食物！"];
-                                speak(hints[Math.floor(Math.random() * hints.length)]);
+                                const keys = ['voice_wrong1', 'voice_wrong2'];
+                                speak(keys[Math.floor(Math.random() * keys.length)]);
                             }
                         }
                     } else {
@@ -495,10 +493,10 @@
                         spawnFloatingText(it.x, it.y - 70, "+10 ✨", "#27ae60");
                         setGameBg(1);
                         playSfx('catch');
-                        // 隨機語音鼓勵（約20%機率，避免太吵）
-                        if (Math.random() < 0.2) {
-                            const cheers = ["答對了！","很棒！","繼續加油！","正確！"];
-                            speak(cheers[Math.floor(Math.random() * cheers.length)]);
+                        // 隨機鼓勵語音（約25%機率）
+                        if (Math.random() < 0.25) {
+                            const keys = ['voice_good1', 'voice_good2'];
+                            speak(keys[Math.floor(Math.random() * keys.length)]);
                         }
                     }
                 }
@@ -561,13 +559,8 @@
             showScreen('result', resKey);
             document.getElementById('result-score').textContent = '總分：' + total + ' 分';
             setTimeout(() => playSfx(sfxName), 300);
-            const endSpeeches = {
-                high: "太棒了！你答對很多題！記住，每天要吃優質蛋白質、新鮮蔬菜和健康澱粉，均衡飲食身體好！",
-                mid:  "做得不錯！記住飲食順序：先吃蛋白質長肌肉，再吃蔬菜顧腸胃，最後吃適量澱粉補充能量！",
-                low:  "沒關係，多練習！記住要多吃天然食物，少吃加工品和油炸食物，健康飲食很重要喔！"
-            };
-            const key = total >= 80 ? 'high' : (total >= 40 ? 'mid' : 'low');
-            setTimeout(() => speak(endSpeeches[key]), 800);
+            const voiceKey = total >= 80 ? 'voice_perfect' : (total >= 40 ? 'voice_normal' : 'voice_ended');
+            setTimeout(() => speak(voiceKey), 800);
         }
 
         // Handle window resize gracefully
