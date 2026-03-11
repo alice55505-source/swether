@@ -3,20 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Swether - 爺爺奶奶營養切切樂</title>
+    <title>Swether - 營養切切樂</title>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #fdfae7; font-family: "Microsoft JhengHei", sans-serif; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #fdfae7; font-family: sans-serif; }
         .screen { display: none; width: 100%; height: 100%; position: absolute; top: 0; left: 0; background-size: cover; background-position: center; flex-direction: column; align-items: center; justify-content: flex-end; }
         .active { display: flex; }
         #gameCanvas { display: block; width: 100%; height: 100%; touch-action: none; z-index: 5; background: transparent; }
-        .btn { width: 85%; height: 15%; margin-bottom: 8%; cursor: pointer; background: transparent; border: none; outline: none; -webkit-tap-highlight-color: transparent; z-index: 20; }
-        #game-tips { position: absolute; top: 15%; width: 100%; text-align: center; font-size: 3.5rem; color: #d35400; font-weight: 900; text-shadow: 3px 3px 0 white; pointer-events: none; z-index: 15; }
-        #loading { display: flex; justify-content: center; align-items: center; background: #fdfae7; z-index: 100; font-size: 1.8rem; font-weight: bold; }
+        .btn { width: 85%; height: 15%; margin-bottom: 10%; cursor: pointer; background: rgba(255,255,255,0.1); border: none; outline: none; -webkit-tap-highlight-color: transparent; z-index: 20; }
+        #game-tips { position: absolute; top: 15%; width: 100%; text-align: center; font-size: 3rem; color: #d35400; font-weight: 900; pointer-events: none; z-index: 15; }
+        
+        /* 啟動按鈕：解決瀏覽器音訊限制與加載卡死 */
+        #loading { display: flex; justify-content: center; align-items: center; background: #fdfae7; z-index: 100; flex-direction: column; }
+        .start-trigger { padding: 20px 40px; font-size: 1.5rem; background: #e67e22; color: white; border-radius: 50px; border: none; cursor: pointer; }
     </style>
 </head>
 <body>
 
-    <div id="loading" class="screen active">👴 爺爺正在磨餐刀...</div>
+    <div id="loading" class="screen active">
+        <p id="loading-text">👴 爺爺正在磨餐刀...</p>
+        <button class="start-trigger" id="start-btn" style="display:none;" onclick="initGame()">點我開始遊戲</button>
+    </div>
     
     <div id="home" class="screen" onclick="showScreen('intro', 'intro')"><button class="btn"></button></div>
     <div id="intro" class="screen" onclick="startLevel(1)"><button class="btn"></button></div>
@@ -28,7 +34,6 @@
         const VOICE_ID = "b20abfd2bc2741e0b61f02c54aa93dc3";
         const BASE = `https://raw.githubusercontent.com/alice55505-source/swether/main/`;
         
-        // 確保路徑完全符合 GitHub 檔案列表
         const BG_MAP = {
             home: `${BASE}images/cover.jpg`, 
             intro: `${BASE}images/intro.jpg`,
@@ -40,7 +45,6 @@
             result3: `${BASE}images/result3.jpg`
         };
 
-        const sfx = { catch: new Audio(`${BASE}sounds/catch.mp3`) };
         let currentLevel = 1, scores = { 1:0, 2:0, 3:0 }, gameItems = [], isGaming = false, slashPoints = [];
         const canvas = document.getElementById('gameCanvas'), ctx = canvas.getContext('2d');
 
@@ -55,7 +59,7 @@
                     const audio = new Audio(URL.createObjectURL(await res.blob()));
                     audio.play();
                 }
-            } catch (e) { console.log("語音跳過"); }
+            } catch (e) { console.error("語音失敗"); }
         }
 
         function showScreen(id, bgKey) {
@@ -65,20 +69,22 @@
             target.classList.add('active');
         }
 
+        function initGame() {
+            document.getElementById('loading').style.display = 'none';
+            showScreen('home', 'home');
+            speak("你好啊，來陪爺爺切菜吧！"); // 首次互動觸發音訊
+        }
+
         function startLevel(level) {
             currentLevel = level;
             showScreen('gameContainer', 'K' + level);
-            initLevel();
-        }
-
-        function initLevel() {
             canvas.width = window.innerWidth; canvas.height = window.innerHeight;
             document.getElementById('game-tips').innerText = ["", "第一關：切蛋白質", "第二關：切蔬菜", "第三關：切澱粉"][currentLevel];
             speak(["", "先吃肉肉長肌肉", "再吃青菜好順暢", "最後吃飯有力氣"][currentLevel]);
 
             isGaming = true; gameItems = [];
-            requestAnimationFrame(updateLoop);
-            const spawnTimer = setInterval(() => { if(!isGaming) clearInterval(spawnTimer); else spawnFood(); }, 1200);
+            gameLoop();
+            const spawnTimer = setInterval(() => { if(!isGaming) clearInterval(spawnTimer); else spawnFood(); }, 1000);
 
             setTimeout(() => {
                 isGaming = false;
@@ -89,14 +95,64 @@
 
         function spawnFood() {
             gameItems.push({
-                x: Math.random() * (canvas.width - 100) + 50, y: canvas.height + 50,
-                vy: -15, vx: (Math.random() - 0.5) * 4,
+                x: Math.random() * (canvas.width - 60) + 30, y: canvas.height + 50,
+                vy: -16, vx: (Math.random() - 0.5) * 5,
                 emoji: ["", "🥩", "🥦", "🍚"][currentLevel], sliced: false
             });
         }
 
-        function updateLoop() {
+        function gameLoop() {
             if(!isGaming && slashPoints.length === 0) return;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 繪製白色劃痕 (刀
+            // 繪製劃痕 (刀光) - 確保可見
+            if (slashPoints.length > 1) {
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.9)"; 
+                ctx.lineWidth = 15; 
+                ctx.lineCap = "round";
+                ctx.beginPath();
+                ctx.moveTo(slashPoints[0].x, slashPoints[0].y);
+                for (let i = 1; i < slashPoints.length; i++) ctx.lineTo(slashPoints[i].x, slashPoints[i].y);
+                ctx.stroke();
+                slashPoints.shift(); 
+            }
+
+            gameItems.forEach((it, i) => {
+                it.y += it.vy; it.x += it.vx; it.vy += 0.4;
+                ctx.font = "80px Arial"; ctx.textAlign = "center";
+                if(it.sliced) {
+                    ctx.globalAlpha = 0.3;
+                    ctx.fillText(it.emoji, it.x - 30, it.y); ctx.fillText(it.emoji, it.x + 30, it.y);
+                    ctx.globalAlpha = 1.0;
+                } else { ctx.fillText(it.emoji, it.x, it.y); }
+                if(it.y > canvas.height + 100) gameItems.splice(i, 1);
+            });
+            requestAnimationFrame(gameLoop);
+        }
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const t = e.touches[0];
+            slashPoints.push({x: t.clientX, y: t.clientY});
+            gameItems.forEach(it => {
+                if(!it.sliced && Math.hypot(it.x - t.clientX, it.y - t.clientY) < 60) {
+                    it.sliced = true; scores[currentLevel] += 10;
+                }
+            });
+        }, {passive: false});
+
+        function finishGame() {
+            const total = scores[1] + scores[2] + scores[3];
+            let resKey = total >= 80 ? 'result1' : (total >= 40 ? 'result2' : 'result3');
+            showScreen('result', resKey);
+            speak(total >= 80 ? "太棒了，你切得真好，一百分！" : "做得不錯，記得先吃肉再吃菜喔！");
+        }
+
+        // 頁面加載後直接顯示按鈕，不再等待 window.onload
+        setTimeout(() => {
+            document.getElementById('loading-text').style.display = 'none';
+            document.getElementById('start-btn').style.display = 'block';
+        }, 1500);
+    </script>
+</body>
+</html>
