@@ -10,9 +10,7 @@
         .active { display: flex; }
         #gameCanvas { display: block; width: 100%; height: 100%; touch-action: none; z-index: 5; cursor: crosshair; }
         .btn { width: 85%; height: 15%; margin-bottom: 12%; cursor: pointer; background: transparent; border: none; outline: none; -webkit-tap-highlight-color: transparent; z-index: 20; }
-        #game-tips { position: absolute; top: 3%; width: 100%; text-align: center; pointer-events: none; z-index: 15; }
-        #game-tips .title { font-size: 2.2rem; color: #d35400; font-weight: 900; text-shadow: 2px 2px 0 white; display: block; }
-        #game-tips .subtitle { font-size: 1.4rem; color: #fff; font-weight: 700; text-shadow: 1px 1px 3px rgba(0,0,0,0.8); display: block; margin-top: 4px; }
+        #game-tips { display: none !important; }
         #loading { display: flex; justify-content: center; align-items: center; background: #fdfae7; z-index: 100; font-size: 1.5rem; font-weight: bold; cursor: pointer; }
     </style>
 </head>
@@ -20,11 +18,36 @@
 
 
     
+    <!-- 語音測試按鈕（右下角浮動，任何畫面都看得到）-->
+    <div id="voiceTestBtn" onclick="testVoice()" style="
+        position: fixed; bottom: 24px; right: 20px; z-index: 999;
+        background: rgba(0,0,0,0.65); color: white; border-radius: 50px;
+        padding: 12px 20px; font-size: 1.1rem; font-weight: bold;
+        cursor: pointer; box-shadow: 0 3px 10px rgba(0,0,0,0.4);
+        display: flex; align-items: center; gap: 8px;
+    ">🔊 語音測試</div>
+
+    <div id="voiceTestResult" style="
+        position: fixed; bottom: 80px; right: 20px; z-index: 999;
+        background: rgba(255,255,255,0.95); color: #333; border-radius: 12px;
+        padding: 10px 16px; font-size: 0.95rem; max-width: 260px;
+        box-shadow: 0 3px 10px rgba(0,0,0,0.2); display: none;
+        line-height: 1.6;
+    "></div>
+
     <div id="home" class="screen active" onclick="playSfx('click'); showScreen('intro', 'intro')"><button class="btn"></button></div>
     <div id="intro" class="screen" onclick="playSfx('click'); startLevel(1)"><button class="btn"></button></div>
     <div id="gameContainer" class="screen"><div id="game-tips"><span class="title"></span><span class="subtitle"></span></div><canvas id="gameCanvas"></canvas></div>
     <div id="betweenLevel" class="screen"><button class="btn" onclick="onBetweenLevelClick()"></button></div>
-    <div id="result" class="screen"><button class="btn" onclick="location.reload()"></button></div>
+    <div id="result" class="screen">
+        <div id="result-score" style="
+            position: absolute; top: 28%; left: 50%; transform: translateX(-50%);
+            font-size: 3.8rem; font-weight: 900; color: #1a5fa8;
+            text-shadow: 2px 2px 0 white, -1px -1px 0 white;
+            pointer-events: none; z-index: 20; white-space: nowrap;
+        "></div>
+        <button class="btn" onclick="location.reload()"></button>
+    </div>
 
     <script>
         const FISH_KEY = "2280183970ad46e9ae253e08db5e28c5"; 
@@ -109,6 +132,54 @@
                 const audio = new Audio(URL.createObjectURL(blob));
                 audio.play();
             } catch (e) { console.log("語音暫時不可用"); }
+        }
+
+        async function testVoice() {
+            const btn = document.getElementById('voiceTestBtn');
+            const result = document.getElementById('voiceTestResult');
+            btn.textContent = '⏳ 測試中...';
+            result.style.display = 'block';
+            result.style.background = 'rgba(255,255,255,0.95)';
+            result.textContent = '正在連線 Fish Audio...';
+
+            try {
+                const res = await fetch("https://api.fish.audio/v1/tts", {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${FISH_KEY}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        text: "語音測試成功！衛教語音正常運作。",
+                        reference_id: VOICE_ID,
+                        format: "mp3"
+                    })
+                });
+
+                if (!res.ok) {
+                    const errText = await res.text();
+                    throw new Error(`HTTP ${res.status}: ${errText}`);
+                }
+
+                const blob = await res.blob();
+                const audio = new Audio(URL.createObjectURL(blob));
+                audio.play();
+
+                btn.innerHTML = '✅ 語音正常';
+                result.style.background = 'rgba(220,255,220,0.97)';
+                result.textContent = '✅ Fish Audio 連線成功！語音播放中...';
+            } catch (e) {
+                btn.innerHTML = '❌ 語音失敗';
+                result.style.background = 'rgba(255,220,220,0.97)';
+                result.textContent = '❌ 失敗原因：' + e.message;
+                console.error('語音測試失敗', e);
+            }
+
+            // 5秒後恢復按鈕
+            setTimeout(() => {
+                btn.innerHTML = '🔊 語音測試';
+                result.style.display = 'none';
+            }, 6000);
         }
 
         function showScreen(id, bgKey) {
@@ -203,7 +274,7 @@
             levelEndTimerId = setTimeout(() => {
                 stopCurrentLevel();
                 setTimeout(() => showBetweenLevel(), 600);
-            }, 10000);
+            }, 30000);
         }
 
         // ── 食物資料庫（emoji → 中文名稱）──────────────────────────
@@ -267,8 +338,8 @@
             gameItems.push({
                 x: Math.random() * (canvas.width - 100) + 50,
                 y: canvas.height + 50,
-                vy: -(3.5 + Math.random() * 2),
-                vx: (Math.random() - 0.5) * 2,
+                vy: -(10 + Math.random() * 3),
+                vx: (Math.random() - 0.5) * 3,
                 emoji: emoji,
                 label: FOOD_NAMES[emoji] || "",
                 isWrong: isWrong,
@@ -488,6 +559,7 @@
             const resKey = total >= 80 ? 'result1' : (total >= 40 ? 'result2' : 'result3');
             const sfxName = total >= 80 ? 'perfect' : (total >= 40 ? 'normal' : 'ended');
             showScreen('result', resKey);
+            document.getElementById('result-score').textContent = '總分：' + total + ' 分';
             setTimeout(() => playSfx(sfxName), 300);
             const endSpeeches = {
                 high: "太棒了！你答對很多題！記住，每天要吃優質蛋白質、新鮮蔬菜和健康澱粉，均衡飲食身體好！",
