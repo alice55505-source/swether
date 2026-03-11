@@ -5,26 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Swether - 爺爺奶奶營養切切樂</title>
     <style>
-        :root { --p-color: #ff7675; --v-color: #55efc4; --s-color: #ffeaa7; }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #fdfae7; font-family: "Microsoft JhengHei", sans-serif; }
-        
         .screen { display: none; width: 100%; height: 100%; position: absolute; top: 0; left: 0; background-size: cover; background-position: center; flex-direction: column; align-items: center; justify-content: flex-end; }
         .active { display: flex; }
-
-        #gameCanvas { display: block; width: 100%; height: 100%; touch-action: none; position: relative; z-index: 5; }
-        .btn { width: 85%; height: 12%; margin-bottom: 8%; cursor: pointer; background: transparent; border: none; outline: none; -webkit-tap-highlight-color: transparent; z-index: 20; }
-
-        /* 結算面板調整：確保不完全遮擋背景圖 */
-        .result-panel {
-            position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%);
-            width: 75%; background: rgba(255, 255, 255, 0.8); border-radius: 25px;
-            padding: 15px; text-align: center; z-index: 10; pointer-events: none;
-        }
-        .step-row { display: flex; align-items: center; margin: 8px 0; padding: 10px; border-radius: 15px; background: white; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        .step-score { margin-left: auto; font-size: 1.5rem; font-weight: 900; color: #e67e22; }
-        
-        #game-tips { position: absolute; top: 12%; width: 100%; text-align: center; font-size: 2.8rem; color: #d35400; font-weight: 900; text-shadow: 2px 2px 0 white; pointer-events: none; z-index: 15; }
-        #loading { display: flex; justify-content: center; align-items: center; background: #fdfae7; font-size: 1.5rem; font-weight: bold; }
+        #gameCanvas { display: block; width: 100%; height: 100%; touch-action: none; z-index: 5; background: transparent; }
+        .btn { width: 85%; height: 15%; margin-bottom: 8%; cursor: pointer; background: transparent; border: none; outline: none; -webkit-tap-highlight-color: transparent; z-index: 20; }
+        #game-tips { position: absolute; top: 15%; width: 100%; text-align: center; font-size: 3.5rem; color: #d35400; font-weight: 900; text-shadow: 3px 3px 0 white; pointer-events: none; z-index: 15; }
+        #loading { display: flex; justify-content: center; align-items: center; background: #fdfae7; z-index: 100; font-size: 1.8rem; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -33,53 +20,42 @@
     
     <div id="home" class="screen" onclick="showScreen('intro', 'intro')"><button class="btn"></button></div>
     <div id="intro" class="screen" onclick="startLevel(1)"><button class="btn"></button></div>
-
-    <div id="gameContainer" class="screen">
-        <div id="game-tips"></div>
-        <canvas id="gameCanvas"></canvas>
-    </div>
-    
-    <div id="result" class="screen">
-        <div class="result-panel">
-            <h2 style="color:#d35400; margin-top:0;">健康成績單</h2>
-            <div class="step-row"><span>🥩 蛋白質</span><div id="r1" class="step-score">0</div></div>
-            <div class="step-row"><span>🥦 蔬菜</span><div id="r2" class="step-score">0</div></div>
-            <div class="step-row"><span>🍚 澱粉</span><div id="r3" class="step-score">0</div></div>
-        </div>
-        <button class="btn" onclick="location.reload()"></button>
-    </div>
+    <div id="gameContainer" class="screen"><div id="game-tips"></div><canvas id="gameCanvas"></canvas></div>
+    <div id="result" class="screen"><button class="btn" onclick="location.reload()"></button></div>
 
     <script>
-        const FISH_AUDIO_KEY = "2280183970ad46e9ae253e08db5e28c5"; 
+        const FISH_KEY = "2280183970ad46e9ae253e08db5e28c5"; 
         const VOICE_ID = "b20abfd2bc2741e0b61f02c54aa93dc3";
         const BASE = `https://raw.githubusercontent.com/alice55505-source/swether/main/`;
-        const IMG = (n) => `${BASE}images/${n}`;
-        const SND = (n) => `${BASE}sounds/${n}`;
-
+        
+        // 確保路徑完全符合 GitHub 檔案列表
         const BG_MAP = {
-            home: IMG("cover.jpg"), intro: IMG("intro.jpg"),
-            K1: IMG("K1.jpg"), K2: IMG("K2.jpg"), K3: IMG("K3.jpg"),
-            result1: IMG("result1.jpg"), result2: IMG("result2.jpg"), result3: IMG("result3.jpg")
+            home: `${BASE}images/cover.jpg`, 
+            intro: `${BASE}images/intro.jpg`,
+            K1: `${BASE}images/K1.jpg`, 
+            K2: `${BASE}images/K2.jpg`, 
+            K3: `${BASE}images/K3.jpg`,
+            result1: `${BASE}images/result1.jpg`, 
+            result2: `${BASE}images/result2.jpg`, 
+            result3: `${BASE}images/result3.jpg`
         };
 
-        const sfx = { catch: new Audio(SND("catch.mp3")), bad: new Audio(SND("bad.mp3")) };
-
-        let currentLevel = 1, scores = { 1:0, 2:0, 3:0 }, gameItems = [], isGaming = false;
-        let slashPoints = []; 
+        const sfx = { catch: new Audio(`${BASE}sounds/catch.mp3`) };
+        let currentLevel = 1, scores = { 1:0, 2:0, 3:0 }, gameItems = [], isGaming = false, slashPoints = [];
         const canvas = document.getElementById('gameCanvas'), ctx = canvas.getContext('2d');
 
-        // 強化的語音函式：確保能被播放
         async function speak(text) {
             try {
-                const response = await fetch("https://api.fish.audio/v1/tts", {
+                const res = await fetch("https://api.fish.audio/v1/tts", {
                     method: "POST",
-                    headers: { "Authorization": `Bearer ${FISH_AUDIO_KEY}`, "Content-Type": "application/json" },
+                    headers: { "Authorization": `Bearer ${FISH_KEY}`, "Content-Type": "application/json" },
                     body: JSON.stringify({ text: text, reference_id: VOICE_ID, format: "mp3" })
                 });
-                const blob = await response.blob();
-                const audio = new Audio(URL.createObjectURL(blob));
-                await audio.play();
-            } catch (e) { console.error("語音失敗:", e); }
+                if(res.ok) {
+                    const audio = new Audio(URL.createObjectURL(await res.blob()));
+                    audio.play();
+                }
+            } catch (e) { console.log("語音跳過"); }
         }
 
         function showScreen(id, bgKey) {
@@ -97,32 +73,25 @@
 
         function initLevel() {
             canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-            document.getElementById('game-tips').innerText = ["", "第一關：切肉肉", "第二關：切青菜", "第三關：切飯飯"][currentLevel];
-            
-            const tips = ["", "先吃肉肉長肌肉", "再吃青菜好順暢", "最後吃飯有力氣"];
-            speak(tips[currentLevel]);
+            document.getElementById('game-tips').innerText = ["", "第一關：切蛋白質", "第二關：切蔬菜", "第三關：切澱粉"][currentLevel];
+            speak(["", "先吃肉肉長肌肉", "再吃青菜好順暢", "最後吃飯有力氣"][currentLevel]);
 
             isGaming = true; gameItems = [];
-            const spawnTimer = setInterval(() => {
-                if(!isGaming) { clearInterval(spawnTimer); return; }
-                spawnFood();
-            }, 1200);
-
             requestAnimationFrame(updateLoop);
+            const spawnTimer = setInterval(() => { if(!isGaming) clearInterval(spawnTimer); else spawnFood(); }, 1200);
 
             setTimeout(() => {
                 isGaming = false;
                 if(currentLevel < 3) startLevel(currentLevel + 1);
                 else finishGame();
-            }, 12000);
+            }, 10000);
         }
 
         function spawnFood() {
-            const emojis = ["", "🥩", "🥦", "🍚"];
             gameItems.push({
                 x: Math.random() * (canvas.width - 100) + 50, y: canvas.height + 50,
-                vy: -12 - Math.random() * 5, vx: (Math.random() - 0.5) * 4,
-                emoji: emojis[currentLevel], sliced: false
+                vy: -15, vx: (Math.random() - 0.5) * 4,
+                emoji: ["", "🥩", "🥦", "🍚"][currentLevel], sliced: false
             });
         }
 
@@ -130,65 +99,4 @@
             if(!isGaming && slashPoints.length === 0) return;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. 繪製劃痕 (刀光)
-            if (slashPoints.length > 1) {
-                ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
-                ctx.lineWidth = 8;
-                ctx.lineCap = "round";
-                ctx.beginPath();
-                ctx.moveTo(slashPoints[0].x, slashPoints[0].y);
-                for (let i = 1; i < slashPoints.length; i++) {
-                    ctx.lineTo(slashPoints[i].x, slashPoints[i].y);
-                }
-                ctx.stroke();
-                if(slashPoints.length > 10) slashPoints.shift(); // 保持劃痕長度
-                else setTimeout(() => { slashPoints = []; }, 100); // 停止滑動後清空
-            }
-
-            // 2. 繪製並更新食物
-            gameItems.forEach((it, i) => {
-                it.y += it.vy; it.x += it.vx; it.vy += 0.25; // 重力加速度
-                ctx.font = "90px Arial";
-                ctx.textAlign = "center";
-                
-                if(it.sliced) {
-                    ctx.globalAlpha = 0.5;
-                    ctx.fillText(it.emoji, it.x - 40, it.y);
-                    ctx.fillText(it.emoji, it.x + 40, it.y);
-                    ctx.globalAlpha = 1.0;
-                } else {
-                    ctx.fillText(it.emoji, it.x, it.y);
-                }
-
-                if(it.y > canvas.height + 100) gameItems.splice(i, 1);
-            });
-
-            requestAnimationFrame(updateLoop);
-        }
-
-        canvas.addEventListener('touchmove', (e) => {
-            e.preventDefault();
-            const t = e.touches[0];
-            const tx = t.clientX, ty = t.clientY;
-            slashPoints.push({x: tx, y: ty});
-
-            gameItems.forEach(it => {
-                if(!it.sliced && Math.hypot(it.x - tx, it.y - ty) < 70) {
-                    it.sliced = true;
-                    sfx.catch.play();
-                    scores[currentLevel] += 10;
-                }
-            });
-        }, {passive: false});
-
-        async function finishGame() {
-            const total = scores[1] + scores[2] + scores[3];
-            document.getElementById('r1').innerText = scores[1];
-            document.getElementById('r2').innerText = scores[2];
-            document.getElementById('r3').innerText = scores[3];
-            
-            let bgKey = total >= 80 ? 'result1' : (total >= 40 ? 'result2' : 'result3');
-            showScreen('result', bgKey);
-            
-            // 結算語音
-            const endText
+            // 繪製白色劃痕 (刀
