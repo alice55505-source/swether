@@ -10,46 +10,18 @@
         .active { display: flex; }
         #gameCanvas { display: block; width: 100%; height: 100%; touch-action: none; z-index: 5; cursor: crosshair; }
         .btn { width: 85%; height: 15%; margin-bottom: 12%; cursor: pointer; background: transparent; border: none; outline: none; -webkit-tap-highlight-color: transparent; z-index: 20; }
-        #game-tips { display: none !important; }
+        #game-tips { position: absolute; top: 15%; width: 100%; text-align: center; font-size: 3rem; color: #d35400; font-weight: 900; text-shadow: 2px 2px 0 white; pointer-events: none; z-index: 15; }
         #loading { display: flex; justify-content: center; align-items: center; background: #fdfae7; z-index: 100; font-size: 1.5rem; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
 
-
+    <div id="loading" class="screen active" onclick="initGame()">點擊螢幕開始遊戲</div>
     
-    <!-- 語音測試按鈕（右下角浮動，任何畫面都看得到）-->
-    <div id="voiceTestBtn" onclick="testVoice()" style="
-        position: fixed; bottom: 24px; right: 20px; z-index: 999;
-        background: rgba(0,0,0,0.65); color: white; border-radius: 50px;
-        padding: 12px 20px; font-size: 1.1rem; font-weight: bold;
-        cursor: pointer; box-shadow: 0 3px 10px rgba(0,0,0,0.4);
-        display: flex; align-items: center; gap: 8px;
-    ">🔊 語音測試</div>
-
-    <div id="voiceTestResult" style="
-        position: fixed; bottom: 80px; right: 20px; z-index: 999;
-        background: rgba(255,255,255,0.95); color: #333; border-radius: 12px;
-        padding: 10px 16px; font-size: 0.95rem; max-width: 260px;
-        box-shadow: 0 3px 10px rgba(0,0,0,0.2); display: none;
-        line-height: 1.6;
-    "></div>
-
-    <div id="home" class="screen active" onclick="playSfx('click'); showScreen('intro', 'intro')"><button class="btn"></button></div>
-    <div id="intro" class="screen">
-        <button id="startBtn" class="btn" disabled style="opacity:0; cursor:not-allowed;"></button>
-    </div>
-    <div id="gameContainer" class="screen"><div id="game-tips"><span class="title"></span><span class="subtitle"></span></div><canvas id="gameCanvas"></canvas></div>
-    <div id="betweenLevel" class="screen"><button class="btn" onclick="onBetweenLevelClick()"></button></div>
-    <div id="result" class="screen">
-        <div id="result-score" style="
-            position: absolute; top: 28%; left: 50%; transform: translateX(-50%);
-            font-size: 3.8rem; font-weight: 900; color: #1a5fa8;
-            text-shadow: 2px 2px 0 white, -1px -1px 0 white;
-            pointer-events: none; z-index: 20; white-space: nowrap;
-        "></div>
-        <button class="btn" onclick="location.reload()"></button>
-    </div>
+    <div id="home" class="screen" onclick="showScreen('intro', 'intro')"><button class="btn"></button></div>
+    <div id="intro" class="screen" onclick="startLevel(1)"><button class="btn"></button></div>
+    <div id="gameContainer" class="screen"><div id="game-tips"></div><canvas id="gameCanvas"></canvas></div>
+    <div id="result" class="screen"><button class="btn" onclick="location.reload()"></button></div>
 
     <script>
         const FISH_KEY = "2280183970ad46e9ae253e08db5e28c5"; 
@@ -61,65 +33,22 @@
             result1: `${BASE}images/result1.jpg`, result2: `${BASE}images/result2.jpg`, result3: `${BASE}images/result3.jpg`
         };
 
-        // ── 音訊系統 ────────────────────────────────────────────────
-        // BGM（HTML Audio，循環）
-        const bgm = new Audio(`${BASE}sounds/bgm.mp3`);
-        bgm.loop = true; bgm.volume = 0.5; bgm.preload = 'auto';
+        // --- FIX 1: Audio pool to avoid memory leak from cloneNode() ---
+        const POOL_SIZE = 5;
+        let catchAudioPool = [];
+        let catchPoolIndex = 0;
 
-        // SFX（Web Audio，低延遲）
-        let actx = null, sfxBuffers = {}, sfxReady = false;
-
-        async function initAudioPool() {
-            const AC = window.AudioContext || window.webkitAudioContext;
-            if (!AC) return;
-            actx = new AC();
-            await actx.resume();
-            const files = {
-                click: 'click.mp3', catch: 'catch.mp3', wrong: 'wrong.mp3',
-                bad: 'bad.mp3', good: 'good.mp3',
-                perfect: 'perfect.mp3', normal: 'normal.mp3', ended: 'ended.mp3',
-                voice_intro:   'voice_intro.mp3',
-                voice_k1:      'voice_k1.mp3',
-                voice_k2:      'voice_k2.mp3',
-                voice_k3:      'voice_k3.mp3',
-                voice_good1:   'voice_good1.mp3',
-                voice_good2:   'voice_good2.mp3',
-                voice_bad1:    'voice_bad1.mp3',
-                voice_wrong1:  'voice_wrong1.mp3',
-                voice_wrong2:  'voice_wrong2.mp3',
-                voice_perfect: 'voice__perfect.mp3',
-                voice_normal:  'voice_normal.mp3',
-                voice_ended:   'voice_ended.mp3'
-            };
-            await Promise.all(Object.entries(files).map(async ([key, file]) => {
-                try {
-                    const arr = await fetch(`${BASE}sounds/${file}`).then(r => r.arrayBuffer());
-                    sfxBuffers[key] = await new Promise((res, rej) => actx.decodeAudioData(arr, res, rej));
-                } catch(e) { console.warn('sfx load fail:', key, e); }
-            }));
-            sfxReady = true;
+        function initAudioPool() {
+            for (let i = 0; i < POOL_SIZE; i++) {
+                catchAudioPool.push(new Audio(`${BASE}sounds/catch.mp3`));
+            }
         }
 
-        function playSfx(name, vol = 1) {
-            if (!actx || !sfxBuffers[name]) return;
-            try {
-                const src = actx.createBufferSource();
-                src.buffer = sfxBuffers[name];
-                const gain = actx.createGain();
-                gain.gain.value = vol;
-                src.connect(gain).connect(actx.destination);
-                src.start(0);
-            } catch(e) { console.warn('sfx play err', e); }
-        }
-
-        // 向下相容的 catch 音效呼叫
-        function playCatchSound() { playSfx('catch'); }
-
-        function startBgm() {
-            bgm.play().catch(() => {
-                const resume = () => { bgm.play().catch(()=>{}); document.removeEventListener('pointerdown', resume); };
-                document.addEventListener('pointerdown', resume, { once: true });
-            });
+        function playCatchSound() {
+            const audio = catchAudioPool[catchPoolIndex];
+            catchPoolIndex = (catchPoolIndex + 1) % POOL_SIZE;
+            audio.currentTime = 0;
+            audio.play().catch(() => {});
         }
 
         let currentLevel = 1;
@@ -135,29 +64,17 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
-        // speak() 現在直接播放預錄音檔，不再呼叫 Fish Audio
-        function speak(sfxKey) {
-            if (sfxKey) playSfx(sfxKey, 1.0);
-        }
-
-        function testVoice() {
-            const btn = document.getElementById('voiceTestBtn');
-            const result = document.getElementById('voiceTestResult');
-            result.style.display = 'block';
-            if (sfxBuffers['voice_intro']) {
-                playSfx('voice_intro');
-                btn.innerHTML = '✅ 播放中';
-                result.style.background = 'rgba(220,255,220,0.97)';
-                result.textContent = '✅ 語音正常！正在播放 voice_intro';
-            } else {
-                btn.innerHTML = '❌ 未載入';
-                result.style.background = 'rgba(255,220,220,0.97)';
-                result.textContent = '❌ 音檔尚未載入，請稍後再試';
-            }
-            setTimeout(() => {
-                btn.innerHTML = '🔊 語音測試';
-                result.style.display = 'none';
-            }, 5000);
+        async function speak(text) {
+            try {
+                const res = await fetch("https://api.fish.audio/v1/tts", {
+                    method: "POST",
+                    headers: { "Authorization": `Bearer ${FISH_KEY}`, "Content-Type": "application/json" },
+                    body: JSON.stringify({ text: text, reference_id: VOICE_ID, format: "mp3" })
+                });
+                const blob = await res.blob();
+                const audio = new Audio(URL.createObjectURL(blob));
+                audio.play();
+            } catch (e) { console.log("語音暫時不可用"); }
         }
 
         function showScreen(id, bgKey) {
@@ -165,65 +82,19 @@
             const target = document.getElementById(id);
             if (bgKey) target.style.backgroundImage = `url('${BG_MAP[bgKey]}')`;
             target.classList.add('active');
-
-            // intro 頁：播 voice_intro，播完解鎖開始按鈕
-            if (id === 'intro') {
-                const btn = document.getElementById('startBtn');
-                btn.disabled = true;
-                btn.style.opacity = '0';
-                btn.style.cursor = 'not-allowed';
-                btn.onclick = null;
-
-                // 等音檔確保載入後播放
-                const tryPlay = () => {
-                    if (!sfxBuffers['voice_intro']) {
-                        setTimeout(tryPlay, 300);
-                        return;
-                    }
-                    const duration = sfxBuffers['voice_intro'].duration * 1000;
-                    playSfx('voice_intro');
-                    setTimeout(() => {
-                        btn.disabled = false;
-                        btn.style.opacity = '1';
-                        btn.style.cursor = 'pointer';
-                        btn.onclick = () => { playSfx('click'); startLevel(1); };
-                    }, duration + 300);
-                };
-                setTimeout(tryPlay, 200);
-            }
         }
 
         function initGame() {
-            initAudioPool().then(startBgm);
-            const home = document.getElementById('home');
-            home.style.backgroundImage = `url('${BG_MAP.home}')`;
+            document.getElementById('loading').style.display = 'none';
+            initAudioPool();
+            showScreen('home', 'home');
         }
-        window.addEventListener('load', initGame);
-
-        // 過渡畫面圖（第1關結束→K2.jpg, 第2關結束→K3.jpg）
-        const BETWEEN_BG = { 1: `${BASE}images/K2.jpg`, 2: `${BASE}images/K3.jpg` };
 
         function stopCurrentLevel() {
+            // FIX 3: always clear timers before starting/ending a level
             if (spawnTimerId !== null) { clearInterval(spawnTimerId); spawnTimerId = null; }
             if (levelEndTimerId !== null) { clearTimeout(levelEndTimerId); levelEndTimerId = null; }
             isGaming = false;
-        }
-
-        function showBetweenLevel() {
-            playSfx('good');
-            if (currentLevel < 3) {
-                const bg = BETWEEN_BG[currentLevel];
-                document.getElementById('betweenLevel').style.backgroundImage = `url('${bg}')`;
-                document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-                document.getElementById('betweenLevel').classList.add('active');
-            } else {
-                finishGame();
-            }
-        }
-
-        function onBetweenLevelClick() {
-            playSfx('click');
-            startLevel(currentLevel + 1);
         }
 
         function startLevel(level) {
@@ -244,17 +115,10 @@
                 canvas.height = window.innerHeight;
             }
 
-            const tipTitles = ["", "第一關：優質蛋白質 🥩", "第二關：新鮮蔬菜 🥦", "第三關：健康澱粉 🍚"];
-            const tipSubs  = ["",
-                "切正確的蛋白質食物！其他都不要切",
-                "切新鮮蔬菜！其他都不要切",
-                "切健康澱粉食物！其他都不要切"
-            ];
-            document.querySelector('#game-tips .title').textContent   = tipTitles[currentLevel];
-            document.querySelector('#game-tips .subtitle').textContent = tipSubs[currentLevel];
+            document.getElementById('game-tips').innerText =
+                ["", "第一關：蛋白質", "第二關：蔬菜", "第三關：澱粉"][currentLevel];
 
-            const levelVoiceKeys = ["", "voice_k1", "voice_k2", "voice_k3"];
-            speak(levelVoiceKeys[currentLevel]);
+            speak(["", "先吃肉肉長肌肉", "再吃青菜好順暢", "最後吃飯有力氣"][currentLevel]);
 
             gameItems = [];
             slashPoints = [];
@@ -268,12 +132,19 @@
 
             spawnTimerId = setInterval(() => {
                 if (isGaming) spawnFood();
-            }, 2000);
+            }, 1200);
 
             levelEndTimerId = setTimeout(() => {
                 stopCurrentLevel();
-                setTimeout(() => showBetweenLevel(), 600);
-            }, 30000);
+                // FIX 7: small delay so last-frame items finish animating before transition
+                setTimeout(() => {
+                    if (currentLevel < 3) {
+                        startLevel(currentLevel + 1);
+                    } else {
+                        finishGame();
+                    }
+                }, 600);
+            }, 10000);
         }
 
         // ── 食物資料庫（emoji → 中文名稱）──────────────────────────
@@ -337,7 +208,7 @@
             gameItems.push({
                 x: Math.random() * (canvas.width - 100) + 50,
                 y: canvas.height + 50,
-                vy: -(10 + Math.random() * 3),
+                vy: -(7 + Math.random() * 2.5),
                 vx: (Math.random() - 0.5) * 3,
                 emoji: emoji,
                 label: FOOD_NAMES[emoji] || "",
@@ -375,7 +246,7 @@
                 const it = gameItems[i];
                 it.y += it.vy;
                 it.x += it.vx;
-                it.vy += 0.10; // 老人模式：更慢重力
+                it.vy += 0.18; // 老人模式：慢重力
 
                 ctx.textAlign = "center";
 
@@ -395,15 +266,15 @@
 
                     // 食物名稱標籤（白底圓角，大字）
                     if (it.label) {
-                        ctx.font = "bold 34px sans-serif";
+                        ctx.font = "bold 30px sans-serif";
                         const tw = ctx.measureText(it.label).width;
                         const pad = 12, labelY = it.y + 18;
                         ctx.save();
-                        ctx.fillStyle = "rgba(255,255,255,0.95)";
+                        ctx.fillStyle = "rgba(255,255,255,0.88)";
                         ctx.beginPath();
                         ctx.roundRect(it.x - tw/2 - pad, labelY - 28, tw + pad*2, 40, 10);
                         ctx.fill();
-                        ctx.fillStyle = "#000";
+                        ctx.fillStyle = "#1a1a1a";
                         ctx.fillText(it.label, it.x, labelY);
                         ctx.restore();
                     }
@@ -431,20 +302,14 @@
                 if (ft.alpha <= 0) floatingTexts.splice(i, 1);
             }
 
-            // --- Score display（右上角大字帶底框）---
+            // --- Score display ---
             ctx.save();
-            const scoreText = "得分：" + scores[currentLevel];
-            ctx.font = "bold 52px sans-serif";
-            const sw = ctx.measureText(scoreText).width;
-            ctx.fillStyle = "rgba(0,0,0,0.45)";
-            ctx.beginPath();
-            ctx.roundRect(canvas.width - sw - 36, 12, sw + 28, 62, 12);
-            ctx.fill();
-            ctx.fillStyle = "#ffe066";
+            ctx.font = "bold 44px sans-serif";
             ctx.textAlign = "right";
-            ctx.shadowColor = "rgba(0,0,0,0.7)";
-            ctx.shadowBlur = 4;
-            ctx.fillText(scoreText, canvas.width - 22, 62);
+            ctx.fillStyle = "white";
+            ctx.shadowColor = "rgba(0,0,0,0.5)";
+            ctx.shadowBlur = 6;
+            ctx.fillText("得分：" + scores[currentLevel], canvas.width - 24, 60);
             ctx.restore();
 
             // FIX 2: keep loop alive while gaming OR while items/trail still visible
@@ -474,31 +339,17 @@
                             spawnFloatingText(it.x, it.y - 70, "-10 ❌", "#e74c3c");
                             flashScreen("rgba(231,76,60,0.3)");
                             setGameBg(3);
-                            playSfx('bad');
-                            if (Math.random() < 0.4) {
-                                speak('voice_bad1');
-                            }
                         } else {
                             spawnFloatingText(it.x, it.y - 70, "-10 ⚠️", "#e67e22");
                             flashScreen("rgba(230,126,34,0.25)");
                             setGameBg(2);
-                            playSfx('wrong');
-                            if (Math.random() < 0.35) {
-                                const keys = ['voice_wrong1', 'voice_wrong2'];
-                                speak(keys[Math.floor(Math.random() * keys.length)]);
-                            }
                         }
                     } else {
                         scores[currentLevel] += 10;
                         spawnFloatingText(it.x, it.y - 70, "+10 ✨", "#27ae60");
                         setGameBg(1);
-                        playSfx('catch');
-                        // 隨機鼓勵語音（約25%機率）
-                        if (Math.random() < 0.25) {
-                            const keys = ['voice_good1', 'voice_good2'];
-                            speak(keys[Math.floor(Math.random() * keys.length)]);
-                        }
                     }
+                    playCatchSound();
                 }
             }
         }
@@ -555,12 +406,8 @@
         function finishGame() {
             const total = scores[1] + scores[2] + scores[3];
             const resKey = total >= 80 ? 'result1' : (total >= 40 ? 'result2' : 'result3');
-            const sfxName = total >= 80 ? 'perfect' : (total >= 40 ? 'normal' : 'ended');
             showScreen('result', resKey);
-            document.getElementById('result-score').textContent = '總分：' + total + ' 分';
-            setTimeout(() => playSfx(sfxName), 300);
-            const voiceKey = total >= 80 ? 'voice_perfect' : (total >= 40 ? 'voice_normal' : 'voice_ended');
-            setTimeout(() => speak(voiceKey), 800);
+            speak(total >= 80 ? "太棒了，一百分！" : "做得不錯，記得先吃肉再吃菜喔！");
         }
 
         // Handle window resize gracefully
