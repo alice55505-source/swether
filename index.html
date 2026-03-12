@@ -81,7 +81,8 @@
             <div class="volume-hint">📢 請把音量轉到最大<br>才能聽到遊戲聲音</div>
             <button id="sp-allow" onclick="grantSoundPermission()">✅ 開始遊戲</button>
         </div>
-    </div> class="screen active" onclick="ensureAudio(); playSfx('click'); showScreen('intro', 'intro')"><button class="btn"></button></div>
+    </div>
+    <div id="home" class="screen active" onclick="ensureAudio(); playSfx('click'); showScreen('intro', 'intro')"><button class="btn"></button></div>
     <div id="intro" class="screen">
         <button id="startBtn" class="btn" disabled style="opacity:0.45; filter:grayscale(100%); cursor:not-allowed;"></button>
     </div>
