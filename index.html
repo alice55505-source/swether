@@ -831,6 +831,24 @@
                 canvas.height = window.innerHeight;
             }
         });
+
+        // 頁面隱藏或關閉時停止所有聲音
+        function stopAllAudio() {
+            stopBgm();
+            if (currentVoiceSource) {
+                try { currentVoiceSource.stop(); } catch(e) {}
+                currentVoiceSource = null;
+            }
+            if (actx) {
+                try { actx.suspend(); } catch(e) {}
+            }
+        }
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) stopAllAudio();
+        });
+        window.addEventListener('pagehide', stopAllAudio);
+        window.addEventListener('beforeunload', stopAllAudio);
     </script>
 </body>
 </html>
