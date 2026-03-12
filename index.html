@@ -521,7 +521,7 @@
             const x = margin + Math.random() * (canvas.width - margin * 2);
 
             // 從頂部開始，緩慢往下掉落（固定速度，無重力加速）
-            const fallSpeed = 0.2 + Math.random() * 0.2; // 每幀 0.2~0.4 px
+            const fallSpeed = 0.1 + Math.random() * 0.1; // 每幀 0.1~0.2 px
 
             // 輕微左右漂移
             const vx = (Math.random() - 0.5) * 0.8;
@@ -568,7 +568,7 @@
                 const it = gameItems[i];
                 it.y += it.vy;
                 it.x += it.vx;
-                it.vy += (it.gravity || 0.22);
+                it.vy += (it.gravity ?? 0.22);
 
                 // 輕微左右漂移，到邊界就反向
                 const FSIZE = 50;
