@@ -197,15 +197,6 @@
                     if (sfxBuffers[voiceKey]) { clearInterval(iv); doPlay(); }
                 }, 200);
             }
-        } else {
-                btn.innerHTML = '❌ 未載入';
-                result.style.background = 'rgba(255,220,220,0.97)';
-                result.textContent = '❌ 音檔尚未載入，請稍後再試';
-            }
-            setTimeout(() => {
-                btn.innerHTML = '🔊 語音測試';
-                result.style.display = 'none';
-            }, 5000);
         }
 
         function showScreen(id, bgKey) {
