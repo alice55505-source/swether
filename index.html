@@ -39,6 +39,9 @@
     <div id="intro" class="screen">
         <button id="startBtn" class="btn" disabled style="opacity:0; cursor:not-allowed;"></button>
     </div>
+    <div id="k1Screen" class="screen">
+        <button id="k1StartBtn" class="btn" onclick="playSfx('click'); startLevel(1)" disabled style="opacity:0; cursor:default;"></button>
+    </div>
     <div id="gameContainer" class="screen"><div id="game-tips"><span class="title"></span><span class="subtitle"></span></div><canvas id="gameCanvas"></canvas></div>
     <div id="betweenLevel" class="screen"><button id="nextLevelBtn" class="btn" onclick="onBetweenLevelClick()" disabled style="opacity:0; cursor:default;"></button></div>
     <div id="result" class="screen">
@@ -58,6 +61,7 @@
         
         const BG_MAP = {
             home: `${BASE}images/cover.jpg`, intro: `${BASE}images/intro.jpg`,
+            K1: `${BASE}images/K1.jpg`,
             result1: `${BASE}images/result1.jpg`, result2: `${BASE}images/result2.jpg`, result3: `${BASE}images/result3.jpg`
         };
 
@@ -102,6 +106,8 @@
 
         function playSfx(name, vol = 1) {
             if (!actx || !sfxBuffers[name]) return;
+            // 關卡切換緩衝期：封鎖隨機回饋語音，避免和說明語音重疊
+            if (voiceMuted && (name.startsWith('voice_good') || name.startsWith('voice_bad') || name.startsWith('voice_wrong'))) return;
             try {
                 const src = actx.createBufferSource();
                 src.buffer = sfxBuffers[name];
@@ -123,11 +129,16 @@
         }
 
         // 手機瀏覽器需要用戶手勢才能解鎖 AudioContext
-        function ensureAudio() {
-            if (actx && actx.state === 'suspended') {
-                actx.resume().catch(()=>{});
+        let audioInitialized = false;
+        async function ensureAudio() {
+            if (!audioInitialized) {
+                audioInitialized = true;
+                await initAudioPool();
             }
-            // BGM 若還沒播就補播
+            if (actx && actx.state === 'suspended') {
+                await actx.resume().catch(()=>{});
+            }
+            // BGM 在第一次手勢時啟動
             if (bgm.paused) {
                 bgm.play().catch(()=>{});
             }
@@ -197,7 +208,7 @@
                         btn.disabled = false;
                         btn.style.opacity = '1';
                         btn.style.cursor = 'pointer';
-                        btn.onclick = () => { playSfx('click'); startLevel(1); };
+                        btn.onclick = () => { playSfx('click'); showK1Screen(); };
                     }, duration + 300);
                 };
                 setTimeout(tryPlay, 200);
@@ -205,19 +216,52 @@
         }
 
         function initGame() {
-            initAudioPool().then(startBgm);
+            // load 時只設背景，不播音樂（手機需等用戶手勢）
             const home = document.getElementById('home');
             home.style.backgroundImage = `url('${BG_MAP.home}')`;
         }
         window.addEventListener('load', initGame);
 
         // 過渡畫面圖（第1關結束→K2.jpg, 第2關結束→K3.jpg）
-        const BETWEEN_BG = { 1: `${BASE}images/K2.jpg`, 2: `${BASE}images/K3.jpg` };
+        const BETWEEN_BG = { 0: `${BASE}images/K1.jpg`, 1: `${BASE}images/K2.jpg`, 2: `${BASE}images/K3.jpg` };
+
+        let voiceMuted = false;
 
         function stopCurrentLevel() {
             if (spawnTimerId !== null) { clearInterval(spawnTimerId); spawnTimerId = null; }
             if (levelEndTimerId !== null) { clearTimeout(levelEndTimerId); levelEndTimerId = null; }
             isGaming = false;
+            // 靜音隨機語音回饋，避免和說明語音重疊
+            voiceMuted = true;
+            setTimeout(() => { voiceMuted = false; }, 3000);
+        }
+
+        function showK1Screen() {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            const k1 = document.getElementById('k1Screen');
+            k1.style.backgroundImage = `url('${BG_MAP.K1}')`;
+            k1.classList.add('active');
+
+            const btn = document.getElementById('k1StartBtn');
+            btn.disabled = true;
+            btn.style.opacity = '0';
+            btn.style.cursor = 'default';
+
+            const tryPlay = () => {
+                if (sfxBuffers['voice_k1']) {
+                    playSfx('voice_k1', 1.0);
+                    const dur = getSfxDuration('voice_k1');
+                    const wait = Math.max(dur * 1000, 1500) + 400;
+                    setTimeout(() => {
+                        btn.disabled = false;
+                        btn.style.opacity = '1';
+                        btn.style.cursor = 'pointer';
+                    }, wait);
+                } else {
+                    setTimeout(tryPlay, 300);
+                }
+            };
+            setTimeout(tryPlay, 300);
         }
 
         function showBetweenLevel() {
@@ -241,11 +285,12 @@
                         setTimeout(() => {
                             playSfx(nextVoiceKey, 1.0);
                             const dur = getSfxDuration(nextVoiceKey);
+                            const wait = Math.max(dur * 1000, 1500) + 400;
                             setTimeout(() => {
                                 btn.disabled = false;
                                 btn.style.opacity = '1';
                                 btn.style.cursor = 'pointer';
-                            }, dur * 1000 + 300);
+                            }, wait);
                         }, 800);
                     } else {
                         setTimeout(tryPlay, 300);
@@ -289,8 +334,7 @@
             document.querySelector('#game-tips .title').textContent   = tipTitles[currentLevel];
             document.querySelector('#game-tips .subtitle').textContent = tipSubs[currentLevel];
 
-            // voice_k1 在第一關開始播；k2/k3 已在過渡頁播完，不重複
-            if (currentLevel === 1) speak('voice_k1');
+            // 所有關卡語音都在各自說明/過渡頁播完，進遊戲不重複播
 
             gameItems = [];
             slashPoints = [];
