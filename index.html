@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+      <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
@@ -12,30 +12,152 @@
         .btn { width: 85%; height: 15%; margin-bottom: 12%; cursor: pointer; background: transparent; border: none; outline: none; -webkit-tap-highlight-color: transparent; z-index: 20; }
         #game-tips { display: none !important; }
         #loading { display: flex; justify-content: center; align-items: center; background: #fdfae7; z-index: 100; font-size: 1.5rem; font-weight: bold; cursor: pointer; }
+
+        /* 音效授權頁 */
+        #soundPermissionOverlay {
+            display: flex;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.75);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        #soundPermissionBox {
+            background: #fff8e7;
+            border-radius: 24px;
+            padding: 36px 28px;
+            max-width: 340px;
+            width: 88%;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+            animation: popIn 0.35s cubic-bezier(0.34,1.56,0.64,1);
+        }
+        @keyframes popIn {
+            from { transform: scale(0.7); opacity: 0; }
+            to   { transform: scale(1);   opacity: 1; }
+        }
+        #soundPermissionBox .sound-icon {
+            font-size: 3.5rem;
+            margin-bottom: 10px;
+        }
+        #soundPermissionBox h2 {
+            margin: 0 0 10px;
+            font-size: 1.45rem;
+            color: #1a5fa8;
+        }
+        #soundPermissionBox p {
+            margin: 0 0 24px;
+            font-size: 0.97rem;
+            color: #555;
+            line-height: 1.6;
+        }
+        #soundPermissionBox .sp-btn {
+            display: block;
+            width: 100%;
+            padding: 14px 0;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            margin-bottom: 12px;
+            -webkit-tap-highlight-color: transparent;
+            transition: transform 0.1s;
+        }
+        #soundPermissionBox .sp-btn:active { transform: scale(0.96); }
+        #sp-allow {
+            background: linear-gradient(135deg, #27ae60, #2ecc71);
+            color: #fff;
+            box-shadow: 0 4px 12px rgba(39,174,96,0.4);
+        }
+        #sp-deny {
+            background: #eee;
+            color: #888;
+            font-weight: normal;
+            font-size: 0.95rem;
+            margin-bottom: 0;
+        }
+        #soundPermissionBox .volume-hint {
+            margin-top: 14px;
+            font-size: 0.82rem;
+            color: #aaa;
+        }
     </style>
 </head>
 <body>
 
-    <div id="home" class="screen active" onclick="ensureAudio(); playSfx('click'); showScreen('intro', 'intro')"><button class="btn"></button></div>
+    <!-- 🔊 音效授權彈窗（第一次開啟時顯示） -->
+    <div id="soundPermissionOverlay">
+        <div id="soundPermissionBox">
+            <div class="sound-icon">🔊</div>
+            <h2>開啟遊戲音效</h2>
+            <p>本遊戲有背景音樂與音效，<br>請確認手機已開聲音並點擊下方按鈕開始！</p>
+            <button class="sp-btn" id="sp-allow" onclick="grantSoundPermission()">✅ 允許音效，開始遊戲！</button>
+            <button class="sp-btn" id="sp-deny" onclick="denySoundPermission()">靜音模式繼續</button>
+            <div class="volume-hint">💡 小提示：請調高手機音量以獲得最佳體驗</div>
+        </div>
+    </div> class="screen active" onclick="ensureAudio(); playSfx('click'); showScreen('intro', 'intro')"><button class="btn"></button></div>
     <div id="intro" class="screen">
-        <button id="startBtn" class="btn" disabled style="opacity:0; cursor:not-allowed;"></button>
+        <button id="startBtn" class="btn" disabled style="opacity:0.45; filter:grayscale(100%); cursor:not-allowed;"></button>
     </div>
     <div id="k1Screen" class="screen">
-        <button id="k1StartBtn" class="btn" onclick="playSfx('click'); startLevel(1)" disabled style="opacity:0; cursor:default;"></button>
+        <button id="k1StartBtn" class="btn" onclick="playSfx('click'); startLevel(1)" disabled style="opacity:0.45; filter:grayscale(100%); cursor:default;"></button>
     </div>
     <div id="gameContainer" class="screen"><div id="game-tips"><span class="title"></span><span class="subtitle"></span></div><canvas id="gameCanvas"></canvas></div>
-    <div id="betweenLevel" class="screen"><button id="nextLevelBtn" class="btn" onclick="onBetweenLevelClick()" disabled style="opacity:0; cursor:default;"></button></div>
+    <div id="betweenLevel" class="screen"><button id="nextLevelBtn" class="btn" onclick="onBetweenLevelClick()" disabled style="opacity:0.45; filter:grayscale(100%); cursor:default;"></button></div>
     <div id="result" class="screen">
         <div id="result-score" style="
-            position: absolute; top: 36%; left: 50%; transform: translateX(-50%);
-            font-size: 4.5rem; font-weight: 900; color: #1a5fa8;
-            text-shadow: 3px 3px 0 white, -2px -2px 0 white, 2px -2px 0 white, -2px 2px 0 white;
-            pointer-events: none; z-index: 20; white-space: nowrap; letter-spacing: 4px;
+            position: absolute; top: 42%; left: 50%; transform: translateX(-50%);
+            font-size: 5rem; font-weight: 900;
+            pointer-events: none; z-index: 20; white-space: nowrap;
         "></div>
         <button class="btn" onclick="location.reload()"></button>
     </div>
 
     <script>
+        // ── 音效授權系統 ──────────────────────────────────────────────
+        let soundPermissionGranted = false;
+
+        async function grantSoundPermission() {
+            soundPermissionGranted = true;
+            const overlay = document.getElementById('soundPermissionOverlay');
+
+            // 立即觸發 AudioContext（需在用戶手勢事件內）
+            const AC = window.AudioContext || window.webkitAudioContext;
+            if (AC) {
+                if (!actx) actx = new AC();
+                await actx.resume().catch(()=>{});
+            }
+
+            // 嘗試播放一段靜音 audio 來解鎖手機靜音開關（iOS Silent Mode）
+            try {
+                const silentAudio = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=");
+                silentAudio.volume = 0.01;
+                await silentAudio.play();
+            } catch(e) { /* 忽略 */ }
+
+            // 關閉授權彈窗
+            overlay.style.transition = 'opacity 0.4s';
+            overlay.style.opacity = '0';
+            setTimeout(() => { overlay.style.display = 'none'; }, 400);
+
+            // 在手勢解鎖後才開始載入音檔並播 BGM
+            audioInitialized = true;
+            await initAudioPool();
+            startBgm();
+        }
+
+        function denySoundPermission() {
+            soundPermissionGranted = false;
+            const overlay = document.getElementById('soundPermissionOverlay');
+            overlay.style.transition = 'opacity 0.4s';
+            overlay.style.opacity = '0';
+            setTimeout(() => { overlay.style.display = 'none'; }, 400);
+        }
+
         const FISH_KEY = "2280183970ad46e9ae253e08db5e28c5"; 
         const VOICE_ID = "b20abfd2bc2741e0b61f02c54aa93dc3";
         const BASE = `https://raw.githubusercontent.com/alice55505-source/swether/main/`;
@@ -152,18 +274,51 @@
         let scores = { 1: 0, 2: 0, 3: 0 };
         let gameItems = [];
         let isGaming = false;
-        let loopRunning = false; // FIX 2: track if rAF loop is alive
-        let spawnTimerId = null;  // FIX 3: reliable timer handle
+        let loopRunning = false;
+        let spawnTimerId = null;
         let levelEndTimerId = null;
         let slashPoints = [];
-        let isPointerDown = false; // FIX 4: unified pointer state
+        let isPointerDown = false;
+        // 正確率追蹤
+        let totalFoods = 0;   // 全部出現的食物數
+        let correctCount = 0; // 正確行為數（切到好食物 + 沒切壞食物）
 
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
-        // speak() 現在直接播放預錄音檔，不再呼叫 Fish Audio
+        // speak() 播放人聲，新人聲出現時自動切斷上一個
+        let currentVoiceSource = null;
+        let currentVoiceGain = null;
+
         function speak(sfxKey) {
-            if (sfxKey) playSfx(sfxKey, 1.0);
+            if (!sfxKey || !actx || !sfxBuffers[sfxKey]) return;
+            // 切斷上一個人聲
+            if (currentVoiceSource) {
+                try {
+                    if (currentVoiceGain) {
+                        currentVoiceGain.gain.setValueAtTime(0, actx.currentTime);
+                    }
+                    currentVoiceSource.stop();
+                } catch(e) {}
+                currentVoiceSource = null;
+                currentVoiceGain = null;
+            }
+            try {
+                const src = actx.createBufferSource();
+                src.buffer = sfxBuffers[sfxKey];
+                const gain = actx.createGain();
+                gain.gain.value = 1.0;
+                src.connect(gain).connect(actx.destination);
+                src.start(0);
+                src.onended = () => {
+                    if (currentVoiceSource === src) {
+                        currentVoiceSource = null;
+                        currentVoiceGain = null;
+                    }
+                };
+                currentVoiceSource = src;
+                currentVoiceGain = gain;
+            } catch(e) { console.warn('speak err', e); }
         }
 
         function getSfxDuration(key) {
@@ -175,20 +330,20 @@
             const btn = document.getElementById(btnId);
             if (!btn) { console.warn('btn not found:', btnId); return; }
             btn.disabled = true;
-            btn.style.opacity = '0';
+            btn.style.opacity = '0.45';
+            btn.style.filter = 'grayscale(100%)';
             btn.style.cursor = 'default';
             btn.style.pointerEvents = 'none';
             const doPlay = () => {
-                playSfx(voiceKey, 1.0);
+                speak(voiceKey);
                 const dur = getSfxDuration(voiceKey);
                 const wait = Math.max(dur * 1000, minWaitMs || 2000) + 500;
-                console.log('Voice:', voiceKey, 'dur:', dur + 's', 'unlock in:', wait + 'ms');
                 setTimeout(() => {
                     btn.disabled = false;
                     btn.style.opacity = '1';
+                    btn.style.filter = 'none';
                     btn.style.cursor = 'pointer';
                     btn.style.pointerEvents = 'auto';
-                    console.log('Unlocked:', btnId, '✅');
                 }, wait);
             };
             if (sfxBuffers[voiceKey]) { doPlay(); }
@@ -268,8 +423,13 @@
             stopCurrentLevel();
 
             currentLevel = level;
-            // FIX 5: reset this level's score (supports replay)
             scores[currentLevel] = 0;
+
+            // 第一關開始時重置正確率計數
+            if (level === 1) {
+                totalFoods = 0;
+                correctCount = 0;
+            }
 
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
             const gc = document.getElementById('gameContainer');
@@ -315,11 +475,13 @@
 
         // ── 食物資料庫（emoji → 中文名稱）──────────────────────────
         const FOOD_NAMES = {
-            "🫘":"豆腐","🧆":"豆乾","🐟":"鮭魚","🦐":"蝦子","🐠":"旗魚",
+            "🐟":"鮭魚","🦐":"蝦子","🐠":"旗魚",
             "🍗":"雞肉","🥚":"雞蛋","🥩":"瘦牛肉","🥛":"鮮乳","🍶":"優格",
+            "🧀":"起司","🦪":"牡蠣","🥜":"花生",
             "🥦":"花椰菜","🥕":"紅蘿蔔","🥬":"青菜","🍅":"番茄","🫑":"青椒",
-            "🧅":"洋蔥","🥒":"小黃瓜",
+            "🧅":"洋蔥","🥒":"小黃瓜","🌿":"菠菜","🍄":"香菇",
             "🍠":"地瓜","🥔":"馬鈴薯","🎃":"南瓜","🌽":"玉米","🥣":"燕麥","🍚":"糙米",
+            "🫓":"雜糧餅","🍞":"全麥麵包","🌾":"藜麥",
             "🌭":"熱狗","🍔":"漢堡","🥓":"培根","🍟":"薯條",
             "🍰":"蛋糕","🍩":"甜甜圈","🧁":"杯子蛋糕","🍪":"餅乾"
         };
@@ -327,9 +489,9 @@
         // 每關正確食物
         const LEVEL_CORRECT = [
             null,
-            ["🫘","🧆","🐟","🦐","🐠","🍗","🥚","🥩","🥛","🍶"],
-            ["🥦","🥕","🥬","🍅","🫑","🧅","🥒"],
-            ["🍠","🥔","🎃","🌽","🥣","🍚"]
+            ["🐟","🦐","🐠","🍗","🥚","🥩","🥛","🍶","🧀","🦪","🥜"],
+            ["🥦","🥕","🥬","🍅","🫑","🧅","🥒","🌿","🍄"],
+            ["🍠","🥔","🎃","🌽","🥣","🍚","🫓","🍞","🌾"]
         ];
 
         const BAD_FOODS = ["🌭","🍔","🥓","🍟","🍰","🍩","🧁","🍪"];
@@ -375,26 +537,21 @@
             const FOOD_SIZE = 90;
             const margin = FOOD_SIZE + 20;
 
-            // X 出發點：左中右三個區域隨機，確保不超出邊界
-            const zone = Math.floor(Math.random() * 3); // 0=左, 1=中, 2=右
-            const zoneW = canvas.width / 3;
-            const x = zoneW * zone + margin/2 + Math.random() * (zoneW - margin);
+            // X 出發點：全寬隨機，確保不超出邊界
+            const x = margin + Math.random() * (canvas.width - margin * 2);
 
-            // vy：固定弧高讓食物飛到畫面上半部但不超出頂部
-            // 用公式：vy = -sqrt(2 * g * targetHeight)
-            const gravity = 0.22;
-            const targetH = canvas.height * 0.55; // 飛到畫面55%高度
-            const vy = -Math.sqrt(2 * gravity * targetH);
+            // 從頂部開始，緩慢往下掉落（固定速度，無重力加速）
+            const fallSpeed = 1.8 + Math.random() * 1.2; // 每幀 1.8~3 px
 
-            // vx：小幅漂移，且加邊界反彈
-            const vx = (Math.random() - 0.5) * 2.5;
+            // 輕微左右漂移
+            const vx = (Math.random() - 0.5) * 0.8;
 
             gameItems.push({
                 x: x,
-                y: canvas.height + 20,
-                vy: vy,
+                y: -FOOD_SIZE,
+                vy: fallSpeed,
                 vx: vx,
-                gravity: gravity,
+                gravity: 0,
                 emoji: emoji,
                 label: FOOD_NAMES[emoji] || "",
                 isWrong: isWrong,
@@ -433,10 +590,9 @@
                 it.x += it.vx;
                 it.vy += (it.gravity || 0.22);
 
-                // 左右邊界反彈，避免食物飛出畫面
+                // 輕微左右漂移，到邊界就反向
                 const FSIZE = 50;
-                if (it.x < FSIZE) { it.x = FSIZE; it.vx = Math.abs(it.vx); }
-                if (it.x > canvas.width - FSIZE) { it.x = canvas.width - FSIZE; it.vx = -Math.abs(it.vx); }
+                if (it.x < FSIZE || it.x > canvas.width - FSIZE) { it.vx *= -1; }
 
                 ctx.textAlign = "center";
 
@@ -470,6 +626,12 @@
                     }
 
                     if (it.y > canvas.height + 100) {
+                        // 食物掉落離開畫面，計算正確率
+                        if (!it.sliced) {
+                            totalFoods++;
+                            if (it.isWrong) correctCount++; // 壞食物沒切 = 正確
+                            // 好食物沒切 = 錯誤，不加 correctCount
+                        }
                         gameItems.splice(i, 1);
                     }
                 }
@@ -493,18 +655,32 @@
             }
 
             // --- Score display（右上角大字帶底框）---
+            const levelNames = { 1: '🥩 蛋白質', 2: '🥦 蔬菜', 3: '🍚 澱粉' };
+            const levelName = levelNames[currentLevel] || '';
             ctx.save();
             const scoreText = "得分：" + scores[currentLevel];
             ctx.font = "bold 52px sans-serif";
             const sw = ctx.measureText(scoreText).width;
+            // 關卡名稱（左側小標）
+            ctx.font = "bold 36px sans-serif";
+            const lw = ctx.measureText(levelName).width;
+            ctx.fillStyle = "rgba(0,0,0,0.45)";
+            ctx.beginPath();
+            ctx.roundRect(canvas.width - sw - lw - 60, 12, lw + 28, 62, 12);
+            ctx.fill();
+            ctx.fillStyle = "#ffffff";
+            ctx.textAlign = "left";
+            ctx.shadowColor = "rgba(0,0,0,0.7)";
+            ctx.shadowBlur = 4;
+            ctx.fillText(levelName, canvas.width - sw - lw - 46, 58);
+            // 得分（右側）
+            ctx.font = "bold 52px sans-serif";
             ctx.fillStyle = "rgba(0,0,0,0.45)";
             ctx.beginPath();
             ctx.roundRect(canvas.width - sw - 36, 12, sw + 28, 62, 12);
             ctx.fill();
             ctx.fillStyle = "#ffe066";
             ctx.textAlign = "right";
-            ctx.shadowColor = "rgba(0,0,0,0.7)";
-            ctx.shadowBlur = 4;
             ctx.fillText(scoreText, canvas.width - 22, 62);
             ctx.restore();
 
@@ -517,18 +693,20 @@
         }
 
         // --- FIX 4: Unified pointer handling (touch + mouse) ---
+        let pointerStartX = 0, pointerStartY = 0;
+
         function onPointerStart(x, y) {
             isPointerDown = true;
+            pointerStartX = x;
+            pointerStartY = y;
             slashPoints = [];
         }
 
-        function onPointerMove(x, y) {
-            if (!isPointerDown) return;
-            slashPoints.push({ x, y });
-
+        function sliceAt(x, y) {
             for (const it of gameItems) {
                 if (!it.sliced && Math.hypot(it.x - x, it.y - y) < 70) {
                     it.sliced = true;
+                    totalFoods++;
                     if (it.isWrong) {
                         scores[currentLevel] = Math.max(0, scores[currentLevel] - 10);
                         if (it.isBad) {
@@ -536,9 +714,7 @@
                             flashScreen("rgba(231,76,60,0.3)");
                             setGameBg(3);
                             playSfx('bad');
-                            if (Math.random() < 0.4) {
-                                speak('voice_bad1');
-                            }
+                            if (Math.random() < 0.4) speak('voice_bad1');
                         } else {
                             spawnFloatingText(it.x, it.y - 70, "-10 ⚠️", "#e67e22");
                             flashScreen("rgba(230,126,34,0.25)");
@@ -550,11 +726,11 @@
                             }
                         }
                     } else {
+                        correctCount++; // 好食物切到 = 正確
                         scores[currentLevel] += 10;
                         spawnFloatingText(it.x, it.y - 70, "+10 ✨", "#27ae60");
                         setGameBg(1);
                         playSfx('catch');
-                        // 隨機鼓勵語音（約25%機率）
                         if (Math.random() < 0.25) {
                             const keys = ['voice_good1', 'voice_good2'];
                             speak(keys[Math.floor(Math.random() * keys.length)]);
@@ -564,9 +740,21 @@
             }
         }
 
-        function onPointerEnd() {
+        function onPointerMove(x, y) {
+            if (!isPointerDown) return;
+            slashPoints.push({ x, y });
+            sliceAt(x, y);
+        }
+
+        function onPointerEnd(x, y) {
             isPointerDown = false;
-            // FIX: drain trail naturally; don't hard-clear so the last stroke finishes rendering
+            // 點按判斷：移動距離 < 30px 視為點擊，直接切割點按位置
+            if (x !== undefined && y !== undefined) {
+                const dist = Math.hypot(x - pointerStartX, y - pointerStartY);
+                if (dist < 30) {
+                    sliceAt(x, y);
+                }
+            }
         }
 
         // Touch events
@@ -584,14 +772,15 @@
 
         canvas.addEventListener('touchend', (e) => {
             e.preventDefault();
-            onPointerEnd();
+            const t = e.changedTouches[0];
+            onPointerEnd(t.clientX, t.clientY);
         }, { passive: false });
 
         // FIX 4: Mouse events for desktop support
         canvas.addEventListener('mousedown', (e) => onPointerStart(e.clientX, e.clientY));
         canvas.addEventListener('mousemove', (e) => onPointerMove(e.clientX, e.clientY));
-        canvas.addEventListener('mouseup', onPointerEnd);
-        canvas.addEventListener('mouseleave', onPointerEnd);
+        canvas.addEventListener('mouseup', (e) => onPointerEnd(e.clientX, e.clientY));
+        canvas.addEventListener('mouseleave', (e) => onPointerEnd(e.clientX, e.clientY));
 
         // Red/flash overlay for wrong food
         let flashAlpha = 0;
@@ -614,12 +803,31 @@
         }
 
         function finishGame() {
-            const total = scores[1] + scores[2] + scores[3];
-            const resKey = total >= 80 ? 'result1' : (total >= 40 ? 'result2' : 'result3');
-            const sfxName = total >= 80 ? 'perfect' : (total >= 40 ? 'normal' : 'ended');
+            stopBgm();
+            const accuracy = totalFoods > 0 ? Math.round((correctCount / totalFoods) * 100) : 0;
+            const resKey = accuracy >= 80 ? 'result1' : (accuracy >= 50 ? 'result2' : 'result3');
+            const sfxName = accuracy >= 80 ? 'perfect' : (accuracy >= 50 ? 'normal' : 'ended');
             showScreen('result', resKey);
-            document.getElementById('result-score').textContent = '總分：' + total + ' 分';
-            setTimeout(() => playSfx(sfxName), 300);
+            const scoreColors = { result1: '#1a5fa8', result2: '#1a7a2e', result3: '#c0392b' };
+            const scoreEl = document.getElementById('result-score');
+            scoreEl.textContent = accuracy + '%';
+            scoreEl.style.color = scoreColors[resKey];
+            scoreEl.style.textShadow = `2px 2px 0 white, -2px -2px 0 white, 2px -2px 0 white, -2px 2px 0 white`;
+            setTimeout(() => {
+                if (!actx || !sfxBuffers[sfxName]) return;
+                try {
+                    const src = actx.createBufferSource();
+                    src.buffer = sfxBuffers[sfxName];
+                    const gain = actx.createGain();
+                    gain.gain.value = 0.3;
+                    src.connect(gain).connect(actx.destination);
+                    src.start(0);
+                    // 5 秒後開始漸弱，1 秒內淡出
+                    gain.gain.setValueAtTime(0.3, actx.currentTime + 5);
+                    gain.gain.linearRampToValueAtTime(0, actx.currentTime + 6);
+                    src.stop(actx.currentTime + 6);
+                } catch(e) { console.warn('result sfx err', e); }
+            }, 300);
             const voiceKey = total >= 80 ? 'voice_perfect' : (total >= 40 ? 'voice_normal' : 'voice_ended');
             setTimeout(() => speak(voiceKey), 800);
         }
@@ -633,4 +841,4 @@
         });
     </script>
 </body>
-</html>
+</html>  
