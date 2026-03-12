@@ -9,9 +9,8 @@
         .screen { display: none; width: 100%; height: 100%; position: absolute; top: 0; left: 0; background-size: cover; background-position: center; flex-direction: column; align-items: center; justify-content: flex-end; }
         .active { display: flex; }
         #gameCanvas { display: block; width: 100%; height: 100%; touch-action: none; z-index: 5; cursor: crosshair; }
-        .btn { width: 85%; height: 15%; margin-bottom: 12%; cursor: pointer; background: transparent; border: none; outline: none; -webkit-tap-highlight-color: transparent; z-index: 20; position: relative; }
-        .btn::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.45); border-radius: 999px; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
-        .btn.locked::after { opacity: 1; }
+        .btn { width: 85%; height: 15%; margin-bottom: 12%; cursor: pointer; background: transparent; border: none; outline: none; -webkit-tap-highlight-color: transparent; z-index: 20; background-size: 100% 100%; background-repeat: no-repeat; background-position: center; }
+        .btn.locked { cursor: not-allowed; }
         #game-tips { display: none !important; }
         #loading { display: flex; justify-content: center; align-items: center; background: #fdfae7; z-index: 100; font-size: 1.5rem; font-weight: bold; cursor: pointer; }
 
@@ -86,16 +85,16 @@
     </div>
     <div id="home" class="screen active" onclick="ensureAudio(); playSfx('click'); showScreen('intro', 'intro')"><button class="btn"></button></div>
     <div id="intro" class="screen">
-        <button id="startBtn" class="btn locked" disabled style="cursor:not-allowed;"></button>
+        <button id="startBtn" class="btn locked" disabled style="cursor:not-allowed; background-image:url('https://raw.githubusercontent.com/alice55505-source/swether/main/images/btn_start_locked.png');"></button>
     </div>
     <div id="k1Screen" class="screen">
-        <button id="k1StartBtn" class="btn locked" onclick="playSfx('click'); startLevel(1)" disabled style="cursor:default;"></button>
+        <button id="k1StartBtn" class="btn locked" onclick="playSfx('click'); startLevel(1)" disabled style="cursor:default; background-image:url('https://raw.githubusercontent.com/alice55505-source/swether/main/images/btn_leve1_locked.png');"></button>
     </div>
     <div id="gameContainer" class="screen"><div id="game-tips"><span class="title"></span><span class="subtitle"></span></div><canvas id="gameCanvas"></canvas></div>
     <div id="betweenLevel" class="screen"><button id="nextLevelBtn" class="btn locked" onclick="onBetweenLevelClick()" disabled style="cursor:default;"></button></div>
     <div id="result" class="screen">
         <div id="result-score" style="
-            position: absolute; top: 42%; left: 50%; transform: translateX(-50%);
+            position: absolute; top: 33%; left: 50%; transform: translateX(-50%);
             font-size: 5rem; font-weight: 900;
             pointer-events: none; z-index: 20; white-space: nowrap;
         "></div>
@@ -308,22 +307,35 @@
             return 3;
         }
 
+        // 鎖定按鈕對應的灰色圖片
+        const LOCKED_IMG = {
+            startBtn:    `${BASE}images/btn_start_locked.png`,
+            k1StartBtn:  `${BASE}images/btn_leve1_locked.png`,
+            nextLevelBtn_1: `${BASE}images/btn_leve2_locked.png`,
+            nextLevelBtn_2: `${BASE}images/btn_leve3_locked.png`,
+        };
+
         function playVoiceThenUnlock(voiceKey, btnId, minWaitMs) {
             const btn = document.getElementById(btnId);
             if (!btn) { console.warn('btn not found:', btnId); return; }
             btn.disabled = true;
             btn.classList.add('locked');
-            btn.style.cursor = 'default';
             btn.style.pointerEvents = 'none';
+            // 換成灰色按鈕圖
+            let lockedImgKey = btnId;
+            if (btnId === 'nextLevelBtn') {
+                lockedImgKey = currentLevel === 1 ? 'nextLevelBtn_1' : 'nextLevelBtn_2';
+            }
+            if (LOCKED_IMG[lockedImgKey]) btn.style.backgroundImage = `url('${LOCKED_IMG[lockedImgKey]}')`;
             const doPlay = () => {
                 speak(voiceKey);
                 const dur = getSfxDuration(voiceKey);
-                const wait = Math.max(dur * 1000, minWaitMs || 2000) + 500;
+                const wait = Math.max(dur * 1000, minWaitMs || 2000) - 300;
                 setTimeout(() => {
                     btn.disabled = false;
                     btn.classList.remove('locked');
-                    btn.style.cursor = 'pointer';
                     btn.style.pointerEvents = 'auto';
+                    btn.style.backgroundImage = ''; // 還原透明
                 }, wait);
             };
             if (sfxBuffers[voiceKey]) { doPlay(); }
@@ -790,7 +802,7 @@
             showScreen('result', resKey);
             const scoreColors = { result1: '#1a5fa8', result2: '#1a7a2e', result3: '#c0392b' };
             const scoreEl = document.getElementById('result-score');
-            scoreEl.textContent = accuracy + '%';
+            scoreEl.textContent = accuracy;
             scoreEl.style.color = scoreColors[resKey];
             scoreEl.style.textShadow = `2px 2px 0 white, -2px -2px 0 white, 2px -2px 0 white, -2px 2px 0 white`;
             setTimeout(() => {
