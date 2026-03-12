@@ -367,14 +367,16 @@
         function showScreen(id, bgKey) {
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
             const target = document.getElementById(id);
-            if (bgKey) target.style.backgroundImage = `url('${BG_MAP[bgKey]}')`;
             target.classList.add('active');
 
-            // intro 頁：播 voice_intro，播完解鎖開始按鈕
+            // intro 頁：直接顯示灰色鎖定背景，播完語音解鎖
             if (id === 'intro') {
+                target.style.backgroundImage = `url('${BG_MAP.intro_locked}')`;
                 const btn = document.getElementById('startBtn');
                 btn.onclick = () => { playSfx('click'); showK1Screen(); };
                 playVoiceThenUnlock('voice_intro', 'startBtn', 2000);
+            } else {
+                if (bgKey) target.style.backgroundImage = `url('${BG_MAP[bgKey]}')`;
             }
         }
 
@@ -385,8 +387,7 @@
         }
         window.addEventListener('load', initGame);
 
-        // 過渡畫面圖（第1關結束→K2.jpg, 第2關結束→K3.jpg）
-        const BETWEEN_BG = { 0: `${BASE}images/K1.jpg`, 1: `${BASE}images/K2.jpg`, 2: `${BASE}images/K3.jpg` };
+        // 過渡畫面已改用 BG_MAP，BETWEEN_BG 已移除
 
         let voiceMuted = false;
 
@@ -402,7 +403,7 @@
         function showK1Screen() {
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
             const k1 = document.getElementById('k1Screen');
-            k1.style.backgroundImage = `url('${BG_MAP.K1}')`;
+            k1.style.backgroundImage = `url('${BG_MAP.K1_locked}')`;
             k1.classList.add('active');
             playVoiceThenUnlock('voice_k1', 'k1StartBtn', 2000);
         }
@@ -410,8 +411,8 @@
         function showBetweenLevel() {
             playSfx('good');
             if (currentLevel < 3) {
-                const bg = BETWEEN_BG[currentLevel];
-                document.getElementById('betweenLevel').style.backgroundImage = `url('${bg}')`;
+                const lockedBg = currentLevel === 1 ? BG_MAP.K2_locked : BG_MAP.K3_locked;
+                document.getElementById('betweenLevel').style.backgroundImage = `url('${lockedBg}')`;
                 document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
                 document.getElementById('betweenLevel').classList.add('active');
 
@@ -838,7 +839,7 @@
                     src.stop(actx.currentTime + 6);
                 } catch(e) { console.warn('result sfx err', e); }
             }, 300);
-            const voiceKey = total >= 80 ? 'voice_perfect' : (total >= 40 ? 'voice_normal' : 'voice_ended');
+            const voiceKey = accuracy >= 80 ? 'voice_perfect' : (accuracy >= 50 ? 'voice_normal' : 'voice_ended');
             setTimeout(() => speak(voiceKey), 800);
         }
 
