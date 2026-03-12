@@ -85,10 +85,10 @@
     </div>
     <div id="home" class="screen active" onclick="ensureAudio(); playSfx('click'); showScreen('intro', 'intro')"><button class="btn"></button></div>
     <div id="intro" class="screen">
-        <button id="startBtn" class="btn locked" disabled style="cursor:not-allowed; background-image:url('https://raw.githubusercontent.com/alice55505-source/swether/main/images/btn_start_locked.png');"></button>
+        <button id="startBtn" class="btn locked" disabled style="cursor:not-allowed;"></button>
     </div>
     <div id="k1Screen" class="screen">
-        <button id="k1StartBtn" class="btn locked" onclick="playSfx('click'); startLevel(1)" disabled style="cursor:default; background-image:url('https://raw.githubusercontent.com/alice55505-source/swether/main/images/btn_leve1_locked.png');"></button>
+        <button id="k1StartBtn" class="btn locked" onclick="playSfx('click'); startLevel(1)" disabled style="cursor:default;"></button>
     </div>
     <div id="gameContainer" class="screen"><div id="game-tips"><span class="title"></span><span class="subtitle"></span></div><canvas id="gameCanvas"></canvas></div>
     <div id="betweenLevel" class="screen"><button id="nextLevelBtn" class="btn locked" onclick="onBetweenLevelClick()" disabled style="cursor:default;"></button></div>
@@ -148,8 +148,12 @@
         
         const BG_MAP = {
             home: `${BASE}images/cover.jpg`, intro: `${BASE}images/intro.jpg`,
-            K1: `${BASE}images/K1.jpg`,
-            result1: `${BASE}images/result1.jpg`, result2: `${BASE}images/result2.jpg`, result3: `${BASE}images/result3.jpg`
+            K1: `${BASE}images/K1.jpg`, K2: `${BASE}images/K2.jpg`, K3: `${BASE}images/K3.jpg`,
+            result1: `${BASE}images/result1.jpg`, result2: `${BASE}images/result2.jpg`, result3: `${BASE}images/result3.jpg`,
+            intro_locked: `${BASE}images/btn_start_locked.png`,
+            K1_locked:    `${BASE}images/btn_leve1_locked.png`,
+            K2_locked:    `${BASE}images/btn_leve2_locked.png`,
+            K3_locked:    `${BASE}images/btn_leve3_locked.png`,
         };
 
         // ── 音訊系統 ────────────────────────────────────────────────
@@ -307,12 +311,20 @@
             return 3;
         }
 
-        // 鎖定按鈕對應的灰色圖片
-        const LOCKED_IMG = {
-            startBtn:    `${BASE}images/btn_start_locked.png`,
-            k1StartBtn:  `${BASE}images/btn_leve1_locked.png`,
-            nextLevelBtn_1: `${BASE}images/btn_leve2_locked.png`,
-            nextLevelBtn_2: `${BASE}images/btn_leve3_locked.png`,
+        // 鎖定頁面對應的灰色背景圖
+        const LOCKED_BG = {
+            startBtn:       'intro_locked',
+            k1StartBtn:     'K1_locked',
+            nextLevelBtn_1: 'K2_locked',
+            nextLevelBtn_2: 'K3_locked',
+        };
+
+        // 鎖定頁面對應的解鎖後原始背景圖
+        const UNLOCK_BG = {
+            startBtn:       'intro',
+            k1StartBtn:     'K1',
+            nextLevelBtn_1: 'K2',
+            nextLevelBtn_2: 'K3',
         };
 
         function playVoiceThenUnlock(voiceKey, btnId, minWaitMs) {
@@ -321,12 +333,15 @@
             btn.disabled = true;
             btn.classList.add('locked');
             btn.style.pointerEvents = 'none';
-            // 換成灰色按鈕圖
-            let lockedImgKey = btnId;
+
+            // 換整頁背景為灰色鎖定圖
+            let lockedKey = btnId;
             if (btnId === 'nextLevelBtn') {
-                lockedImgKey = currentLevel === 1 ? 'nextLevelBtn_1' : 'nextLevelBtn_2';
+                lockedKey = currentLevel === 1 ? 'nextLevelBtn_1' : 'nextLevelBtn_2';
             }
-            if (LOCKED_IMG[lockedImgKey]) btn.style.backgroundImage = `url('${LOCKED_IMG[lockedImgKey]}')`;
+            const screen = btn.parentElement;
+            if (LOCKED_BG[lockedKey]) screen.style.backgroundImage = `url('${BG_MAP[LOCKED_BG[lockedKey]]}')`;
+
             const doPlay = () => {
                 speak(voiceKey);
                 const dur = getSfxDuration(voiceKey);
@@ -335,7 +350,10 @@
                     btn.disabled = false;
                     btn.classList.remove('locked');
                     btn.style.pointerEvents = 'auto';
-                    btn.style.backgroundImage = ''; // 還原透明
+                    // 換回彩色背景
+                    if (UNLOCK_BG[lockedKey] && BG_MAP[UNLOCK_BG[lockedKey]]) {
+                        screen.style.backgroundImage = `url('${BG_MAP[UNLOCK_BG[lockedKey]]}')`;
+                    }
                 }, wait);
             };
             if (sfxBuffers[voiceKey]) { doPlay(); }
