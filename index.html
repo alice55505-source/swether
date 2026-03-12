@@ -152,19 +152,16 @@
         };
 
         // ── 音訊系統 ────────────────────────────────────────────────
-        // BGM 用 Web Audio 載入（和 SFX 同一套，避免 CORS/autoplay 問題）
-        let bgmSource = null, bgmGain = null, bgmBuffer = null, bgmPlaying = false;
-
         // SFX（Web Audio，低延遲）
         let actx = null, sfxBuffers = {}, sfxReady = false;
 
         async function initAudioPool() {
             const AC = window.AudioContext || window.webkitAudioContext;
             if (!AC) return;
-            actx = new AC();
+            // 重用已存在的 actx，不重新建立（避免丟失手勢授權）
+            if (!actx) actx = new AC();
             await actx.resume();
             const files = {
-                bgm: 'bgm.mp3',
                 click: 'click.mp3', catch: 'catch.mp3', wrong: 'wrong.mp3',
                 bad: 'bad.mp3', good: 'good.mp3',
                 perfect: 'perfect.mp3', normal: 'normal.mp3', ended: 'ended.mp3',
@@ -188,8 +185,6 @@
                 } catch(e) { console.warn('sfx load fail:', key, e); }
             }));
             sfxReady = true;
-            // BGM buffer 單獨存，方便循環播放
-            bgmBuffer = sfxBuffers['bgm'];
         }
 
         function playSfx(name, vol = 1) {
@@ -209,26 +204,23 @@
         // 向下相容的 catch 音效呼叫
         function playCatchSound() { playSfx('catch'); }
 
+        // BGM 用 <audio> 標籤播放，比 Web Audio 更可靠
+        const bgmAudio = new Audio(`${BASE}sounds/bgm.mp3`);
+        bgmAudio.loop = true;
+        bgmAudio.volume = 0.4;
+        let bgmPlaying = false;
+
         function startBgm() {
-            if (bgmPlaying || !bgmBuffer || !actx) return;
-            try {
-                bgmGain = actx.createGain();
-                bgmGain.gain.value = 0.4;
-                bgmGain.connect(actx.destination);
-                bgmSource = actx.createBufferSource();
-                bgmSource.buffer = bgmBuffer;
-                bgmSource.loop = true;
-                bgmSource.connect(bgmGain);
-                bgmSource.start(0);
+            if (bgmPlaying) return;
+            bgmAudio.play().then(() => {
                 bgmPlaying = true;
                 console.log('BGM started ✅');
-            } catch(e) {
-                console.warn('BGM start error:', e);
-            }
+            }).catch(e => console.warn('BGM start error:', e));
         }
 
         function stopBgm() {
-            if (bgmSource) { try { bgmSource.stop(); } catch(e){} bgmSource = null; }
+            bgmAudio.pause();
+            bgmAudio.currentTime = 0;
             bgmPlaying = false;
         }
 
@@ -241,15 +233,6 @@
             }
             if (actx && actx.state === 'suspended') {
                 await actx.resume().catch(()=>{});
-            }
-            // BGM 在第一次手勢時啟動（Web Audio，確保能播）
-            if (!bgmPlaying && bgmBuffer) {
-                startBgm();
-            } else if (!bgmPlaying) {
-                // bgmBuffer 還沒載好，等 initAudioPool 完成後播
-                const waitBgm = setInterval(() => {
-                    if (bgmBuffer) { clearInterval(waitBgm); startBgm(); }
-                }, 200);
             }
         }
 
@@ -524,7 +507,7 @@
             const x = margin + Math.random() * (canvas.width - margin * 2);
 
             // 從頂部開始，緩慢往下掉落（固定速度，無重力加速）
-            const fallSpeed = 1.8 + Math.random() * 1.2; // 每幀 1.8~3 px
+            const fallSpeed = 0.4 + Math.random() * 0.35; // 每幀 0.4~0.75 px
 
             // 輕微左右漂移
             const vx = (Math.random() - 0.5) * 0.8;
