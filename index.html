@@ -16,25 +16,6 @@
 </head>
 <body>
 
-
-    
-    <!-- 語音測試按鈕（右下角浮動，任何畫面都看得到）-->
-    <div id="voiceTestBtn" onclick="testVoice()" style="
-        position: fixed; bottom: 24px; right: 20px; z-index: 999;
-        background: rgba(0,0,0,0.65); color: white; border-radius: 50px;
-        padding: 12px 20px; font-size: 1.1rem; font-weight: bold;
-        cursor: pointer; box-shadow: 0 3px 10px rgba(0,0,0,0.4);
-        display: flex; align-items: center; gap: 8px;
-    ">🔊 語音測試</div>
-
-    <div id="voiceTestResult" style="
-        position: fixed; bottom: 80px; right: 20px; z-index: 999;
-        background: rgba(255,255,255,0.95); color: #333; border-radius: 12px;
-        padding: 10px 16px; font-size: 0.95rem; max-width: 260px;
-        box-shadow: 0 3px 10px rgba(0,0,0,0.2); display: none;
-        line-height: 1.6;
-    "></div>
-
     <div id="home" class="screen active" onclick="ensureAudio(); playSfx('click'); showScreen('intro', 'intro')"><button class="btn"></button></div>
     <div id="intro" class="screen">
         <button id="startBtn" class="btn" disabled style="opacity:0; cursor:not-allowed;"></button>
@@ -66,9 +47,8 @@
         };
 
         // ── 音訊系統 ────────────────────────────────────────────────
-        // BGM（HTML Audio，循環）
-        const bgm = new Audio(`${BASE}sounds/bgm.mp3`);
-        bgm.loop = true; bgm.volume = 0.5; bgm.preload = 'auto';
+        // BGM 用 Web Audio 載入（和 SFX 同一套，避免 CORS/autoplay 問題）
+        let bgmSource = null, bgmGain = null, bgmBuffer = null, bgmPlaying = false;
 
         // SFX（Web Audio，低延遲）
         let actx = null, sfxBuffers = {}, sfxReady = false;
@@ -79,6 +59,7 @@
             actx = new AC();
             await actx.resume();
             const files = {
+                bgm: 'bgm.mp3',
                 click: 'click.mp3', catch: 'catch.mp3', wrong: 'wrong.mp3',
                 bad: 'bad.mp3', good: 'good.mp3',
                 perfect: 'perfect.mp3', normal: 'normal.mp3', ended: 'ended.mp3',
@@ -102,6 +83,8 @@
                 } catch(e) { console.warn('sfx load fail:', key, e); }
             }));
             sfxReady = true;
+            // BGM buffer 單獨存，方便循環播放
+            bgmBuffer = sfxBuffers['bgm'];
         }
 
         function playSfx(name, vol = 1) {
@@ -122,10 +105,26 @@
         function playCatchSound() { playSfx('catch'); }
 
         function startBgm() {
-            bgm.play().catch(() => {
-                const resume = () => { bgm.play().catch(()=>{}); document.removeEventListener('pointerdown', resume); };
-                document.addEventListener('pointerdown', resume, { once: true });
-            });
+            if (bgmPlaying || !bgmBuffer || !actx) return;
+            try {
+                bgmGain = actx.createGain();
+                bgmGain.gain.value = 0.4;
+                bgmGain.connect(actx.destination);
+                bgmSource = actx.createBufferSource();
+                bgmSource.buffer = bgmBuffer;
+                bgmSource.loop = true;
+                bgmSource.connect(bgmGain);
+                bgmSource.start(0);
+                bgmPlaying = true;
+                console.log('BGM started ✅');
+            } catch(e) {
+                console.warn('BGM start error:', e);
+            }
+        }
+
+        function stopBgm() {
+            if (bgmSource) { try { bgmSource.stop(); } catch(e){} bgmSource = null; }
+            bgmPlaying = false;
         }
 
         // 手機瀏覽器需要用戶手勢才能解鎖 AudioContext
@@ -138,9 +137,14 @@
             if (actx && actx.state === 'suspended') {
                 await actx.resume().catch(()=>{});
             }
-            // BGM 在第一次手勢時啟動
-            if (bgm.paused) {
-                bgm.play().catch(()=>{});
+            // BGM 在第一次手勢時啟動（Web Audio，確保能播）
+            if (!bgmPlaying && bgmBuffer) {
+                startBgm();
+            } else if (!bgmPlaying) {
+                // bgmBuffer 還沒載好，等 initAudioPool 完成後播
+                const waitBgm = setInterval(() => {
+                    if (bgmBuffer) { clearInterval(waitBgm); startBgm(); }
+                }, 200);
             }
         }
 
@@ -162,16 +166,38 @@
             if (sfxKey) playSfx(sfxKey, 1.0);
         }
 
-        function testVoice() {
-            const btn = document.getElementById('voiceTestBtn');
-            const result = document.getElementById('voiceTestResult');
-            result.style.display = 'block';
-            if (sfxBuffers['voice_intro']) {
-                playSfx('voice_intro');
-                btn.innerHTML = '✅ 播放中';
-                result.style.background = 'rgba(220,255,220,0.97)';
-                result.textContent = '✅ 語音正常！正在播放 voice_intro';
-            } else {
+        function getSfxDuration(key) {
+            if (sfxBuffers[key] && sfxBuffers[key].duration > 0) return sfxBuffers[key].duration;
+            return 3;
+        }
+
+        function playVoiceThenUnlock(voiceKey, btnId, minWaitMs) {
+            const btn = document.getElementById(btnId);
+            if (!btn) { console.warn('btn not found:', btnId); return; }
+            btn.disabled = true;
+            btn.style.opacity = '0';
+            btn.style.cursor = 'default';
+            btn.style.pointerEvents = 'none';
+            const doPlay = () => {
+                playSfx(voiceKey, 1.0);
+                const dur = getSfxDuration(voiceKey);
+                const wait = Math.max(dur * 1000, minWaitMs || 2000) + 500;
+                console.log('Voice:', voiceKey, 'dur:', dur + 's', 'unlock in:', wait + 'ms');
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
+                    btn.style.cursor = 'pointer';
+                    btn.style.pointerEvents = 'auto';
+                    console.log('Unlocked:', btnId, '✅');
+                }, wait);
+            };
+            if (sfxBuffers[voiceKey]) { doPlay(); }
+            else {
+                const iv = setInterval(() => {
+                    if (sfxBuffers[voiceKey]) { clearInterval(iv); doPlay(); }
+                }, 200);
+            }
+        } else {
                 btn.innerHTML = '❌ 未載入';
                 result.style.background = 'rgba(255,220,220,0.97)';
                 result.textContent = '❌ 音檔尚未載入，請稍後再試';
@@ -191,27 +217,8 @@
             // intro 頁：播 voice_intro，播完解鎖開始按鈕
             if (id === 'intro') {
                 const btn = document.getElementById('startBtn');
-                btn.disabled = true;
-                btn.style.opacity = '0';
-                btn.style.cursor = 'not-allowed';
-                btn.onclick = null;
-
-                // 等音檔確保載入後播放
-                const tryPlay = () => {
-                    if (!sfxBuffers['voice_intro']) {
-                        setTimeout(tryPlay, 300);
-                        return;
-                    }
-                    const duration = sfxBuffers['voice_intro'].duration * 1000;
-                    playSfx('voice_intro');
-                    setTimeout(() => {
-                        btn.disabled = false;
-                        btn.style.opacity = '1';
-                        btn.style.cursor = 'pointer';
-                        btn.onclick = () => { playSfx('click'); showK1Screen(); };
-                    }, duration + 300);
-                };
-                setTimeout(tryPlay, 200);
+                btn.onclick = () => { playSfx('click'); showK1Screen(); };
+                playVoiceThenUnlock('voice_intro', 'startBtn', 2000);
             }
         }
 
@@ -241,27 +248,7 @@
             const k1 = document.getElementById('k1Screen');
             k1.style.backgroundImage = `url('${BG_MAP.K1}')`;
             k1.classList.add('active');
-
-            const btn = document.getElementById('k1StartBtn');
-            btn.disabled = true;
-            btn.style.opacity = '0';
-            btn.style.cursor = 'default';
-
-            const tryPlay = () => {
-                if (sfxBuffers['voice_k1']) {
-                    playSfx('voice_k1', 1.0);
-                    const dur = getSfxDuration('voice_k1');
-                    const wait = Math.max(dur * 1000, 1500) + 400;
-                    setTimeout(() => {
-                        btn.disabled = false;
-                        btn.style.opacity = '1';
-                        btn.style.cursor = 'pointer';
-                    }, wait);
-                } else {
-                    setTimeout(tryPlay, 300);
-                }
-            };
-            setTimeout(tryPlay, 300);
+            playVoiceThenUnlock('voice_k1', 'k1StartBtn', 2000);
         }
 
         function showBetweenLevel() {
@@ -272,31 +259,10 @@
                 document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
                 document.getElementById('betweenLevel').classList.add('active');
 
-                // 鎖定按鈕，播下一關語音，播完才解鎖
-                const btn = document.getElementById('nextLevelBtn');
-                btn.disabled = true;
-                btn.style.opacity = '0';
-                btn.style.cursor = 'default';
-
                 const nextVoiceKey = currentLevel === 1 ? 'voice_k2' : 'voice_k3';
-                const tryPlay = () => {
-                    if (sfxBuffers[nextVoiceKey]) {
-                        // 稍微延遲，讓 good 音效播完再播語音
-                        setTimeout(() => {
-                            playSfx(nextVoiceKey, 1.0);
-                            const dur = getSfxDuration(nextVoiceKey);
-                            const wait = Math.max(dur * 1000, 1500) + 400;
-                            setTimeout(() => {
-                                btn.disabled = false;
-                                btn.style.opacity = '1';
-                                btn.style.cursor = 'pointer';
-                            }, wait);
-                        }, 800);
-                    } else {
-                        setTimeout(tryPlay, 300);
-                    }
-                };
-                tryPlay();
+                setTimeout(() => {
+                    playVoiceThenUnlock(nextVoiceKey, 'nextLevelBtn', 2000);
+                }, 800);
             } else {
                 finishGame();
             }
