@@ -204,23 +204,37 @@
         // 向下相容的 catch 音效呼叫
         function playCatchSound() { playSfx('catch'); }
 
-        // BGM 用 <audio> 標籤播放，比 Web Audio 更可靠
-        const bgmAudio = new Audio(`${BASE}sounds/bgm.mp3`);
-        bgmAudio.loop = true;
-        bgmAudio.volume = 0.4;
+        // BGM 用 <audio> 標籤播放
+        let bgmAudio = null;
         let bgmPlaying = false;
 
         function startBgm() {
             if (bgmPlaying) return;
+            if (!bgmAudio) {
+                bgmAudio = new Audio();
+                bgmAudio.loop = true;
+                bgmAudio.volume = 0.4;
+                bgmAudio.crossOrigin = "anonymous";
+                bgmAudio.src = `${BASE}sounds/bgm.mp3`;
+            }
             bgmAudio.play().then(() => {
                 bgmPlaying = true;
                 console.log('BGM started ✅');
-            }).catch(e => console.warn('BGM start error:', e));
+            }).catch(e => {
+                console.warn('BGM start error:', e);
+                // CORS 失敗時不用 crossOrigin 再試一次
+                bgmAudio = new Audio(`${BASE}sounds/bgm.mp3`);
+                bgmAudio.loop = true;
+                bgmAudio.volume = 0.4;
+                bgmAudio.play().then(() => { bgmPlaying = true; }).catch(()=>{});
+            });
         }
 
         function stopBgm() {
-            bgmAudio.pause();
-            bgmAudio.currentTime = 0;
+            if (bgmAudio) {
+                bgmAudio.pause();
+                bgmAudio.currentTime = 0;
+            }
             bgmPlaying = false;
         }
 
