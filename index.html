@@ -1,4 +1,4 @@
-      <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
@@ -19,72 +19,56 @@
             position: fixed;
             top: 0; left: 0;
             width: 100%; height: 100%;
-            background: rgba(0,0,0,0.75);
+            background: #fff8e7;
             z-index: 9999;
             justify-content: center;
             align-items: center;
             flex-direction: column;
+            padding: 32px 24px;
+            box-sizing: border-box;
         }
         #soundPermissionBox {
-            background: #fff8e7;
-            border-radius: 24px;
-            padding: 36px 28px;
-            max-width: 340px;
-            width: 88%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 420px;
             text-align: center;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.35);
-            animation: popIn 0.35s cubic-bezier(0.34,1.56,0.64,1);
-        }
-        @keyframes popIn {
-            from { transform: scale(0.7); opacity: 0; }
-            to   { transform: scale(1);   opacity: 1; }
         }
         #soundPermissionBox .sound-icon {
-            font-size: 3.5rem;
-            margin-bottom: 10px;
+            font-size: 5rem;
+            margin-bottom: 16px;
         }
         #soundPermissionBox h2 {
-            margin: 0 0 10px;
-            font-size: 1.45rem;
+            margin: 0 0 16px;
+            font-size: 2rem;
             color: #1a5fa8;
-        }
-        #soundPermissionBox p {
-            margin: 0 0 24px;
-            font-size: 0.97rem;
-            color: #555;
-            line-height: 1.6;
-        }
-        #soundPermissionBox .sp-btn {
-            display: block;
-            width: 100%;
-            padding: 14px 0;
-            border: none;
-            border-radius: 50px;
-            font-size: 1.1rem;
-            font-weight: bold;
-            cursor: pointer;
-            margin-bottom: 12px;
-            -webkit-tap-highlight-color: transparent;
-            transition: transform 0.1s;
-        }
-        #soundPermissionBox .sp-btn:active { transform: scale(0.96); }
-        #sp-allow {
-            background: linear-gradient(135deg, #27ae60, #2ecc71);
-            color: #fff;
-            box-shadow: 0 4px 12px rgba(39,174,96,0.4);
-        }
-        #sp-deny {
-            background: #eee;
-            color: #888;
-            font-weight: normal;
-            font-size: 0.95rem;
-            margin-bottom: 0;
+            font-weight: 900;
+            line-height: 1.3;
         }
         #soundPermissionBox .volume-hint {
-            margin-top: 14px;
-            font-size: 0.82rem;
-            color: #aaa;
+            font-size: 1.6rem;
+            font-weight: bold;
+            color: #c0392b;
+            margin-bottom: 40px;
+            line-height: 1.5;
         }
+        #sp-allow {
+            display: block;
+            width: 100%;
+            padding: 22px 0;
+            border: none;
+            border-radius: 60px;
+            font-size: 1.8rem;
+            font-weight: 900;
+            cursor: pointer;
+            background: linear-gradient(135deg, #27ae60, #2ecc71);
+            color: #fff;
+            box-shadow: 0 6px 20px rgba(39,174,96,0.45);
+            -webkit-tap-highlight-color: transparent;
+            letter-spacing: 2px;
+        }
+        #sp-allow:active { transform: scale(0.97); }
     </style>
 </head>
 <body>
@@ -93,11 +77,9 @@
     <div id="soundPermissionOverlay">
         <div id="soundPermissionBox">
             <div class="sound-icon">🔊</div>
-            <h2>開啟遊戲音效</h2>
-            <p>本遊戲有背景音樂與音效，<br>請確認手機已開聲音並點擊下方按鈕開始！</p>
-            <button class="sp-btn" id="sp-allow" onclick="grantSoundPermission()">✅ 允許音效，開始遊戲！</button>
-            <button class="sp-btn" id="sp-deny" onclick="denySoundPermission()">靜音模式繼續</button>
-            <div class="volume-hint">💡 小提示：請調高手機音量以獲得最佳體驗</div>
+            <h2>開始前請先<br>調高手機音量！</h2>
+            <div class="volume-hint">📢 請把音量轉到最大<br>才能聽到遊戲聲音</div>
+            <button id="sp-allow" onclick="grantSoundPermission()">✅ 開始遊戲</button>
         </div>
     </div> class="screen active" onclick="ensureAudio(); playSfx('click'); showScreen('intro', 'intro')"><button class="btn"></button></div>
     <div id="intro" class="screen">
@@ -841,4 +823,4 @@
         });
     </script>
 </body>
-</html>  
+</html>
