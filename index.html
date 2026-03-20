@@ -751,7 +751,8 @@
                     if (it.isWrong) {
                         scores[currentLevel] = Math.max(0, scores[currentLevel] - SCORE_PENALTY);
                         if (it.isBad) {
-                            spawnFloatingText(it.x, it.y - 70, `-${SCORE_PENALTY} ❌`, "#e74c3c");
+                            scores[currentLevel] = Math.max(0, scores[currentLevel] - SCORE_PENALTY); // 額外再扣一次（共-20）
+                            spawnFloatingText(it.x, it.y - 70, `-20 ❌`, "#e74c3c");
                             flashScreen("rgba(231,76,60,0.3)");
                             setGameBg(3);
                             playSfx('bad');
