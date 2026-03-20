@@ -70,6 +70,63 @@
             letter-spacing: 2px;
         }
         #sp-allow:active { transform: scale(0.97); }
+
+        /* 難度選擇浮層 */
+        #difficultyOverlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.55);
+            z-index: 9998;
+            justify-content: center;
+            align-items: center;
+        }
+        #difficultyBox {
+            background: #fff8e7;
+            border-radius: 28px;
+            padding: 36px 28px 32px;
+            width: 88%;
+            max-width: 400px;
+            text-align: center;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+        }
+        #difficultyBox h2 {
+            margin: 0 0 8px;
+            font-size: 1.9rem;
+            font-weight: 900;
+            color: #1a5fa8;
+        }
+        #difficultyBox p {
+            margin: 0 0 28px;
+            font-size: 1.1rem;
+            color: #666;
+        }
+        .diff-btn {
+            display: block;
+            width: 100%;
+            padding: 20px 0;
+            margin-bottom: 16px;
+            border: none;
+            border-radius: 60px;
+            font-size: 1.6rem;
+            font-weight: 900;
+            cursor: pointer;
+            letter-spacing: 2px;
+            -webkit-tap-highlight-color: transparent;
+            transition: transform 0.1s;
+        }
+        .diff-btn:active { transform: scale(0.96); }
+        #btn-novice {
+            background: linear-gradient(135deg, #27ae60, #2ecc71);
+            color: #fff;
+            box-shadow: 0 6px 18px rgba(39,174,96,0.4);
+        }
+        #btn-expert {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            color: #fff;
+            box-shadow: 0 6px 18px rgba(231,76,60,0.4);
+        }
     </style>
 </head>
 <body>
@@ -83,7 +140,16 @@
             <button id="sp-allow" onclick="grantSoundPermission()">✅ 開始遊戲</button>
         </div>
     </div>
-    <div id="home" class="screen active" onclick="ensureAudio(); playSfx('click'); showScreen('intro', 'intro')"><button class="btn"></button></div>
+    <!-- 難度選擇浮層 -->
+    <div id="difficultyOverlay">
+        <div id="difficultyBox">
+            <h2>選擇難度</h2>
+            <p>請選擇你的挑戰模式</p>
+            <button class="diff-btn" id="btn-novice" onclick="chooseDifficulty('novice')">🌱 新手</button>
+            <button class="diff-btn" id="btn-expert" onclick="chooseDifficulty('expert')">🔥 高手</button>
+        </div>
+    </div>
+    <div id="home" class="screen active" onclick="ensureAudio(); playSfx('click'); showDifficultyOverlay()"><button class="btn"></button></div>
     <div id="intro" class="screen">
         <button id="startBtn" class="btn locked" disabled style="cursor:not-allowed;"></button>
     </div>
@@ -93,6 +159,7 @@
     <div id="gameContainer" class="screen"><div id="game-tips"><span class="title"></span><span class="subtitle"></span></div><canvas id="gameCanvas"></canvas></div>
     <div id="betweenLevel" class="screen"><button id="nextLevelBtn" class="btn locked" onclick="onBetweenLevelClick()" disabled style="cursor:default;"></button></div>
     <div id="result" class="screen">
+        <canvas id="confettiCanvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;"></canvas>
         <div id="result-score" style="
             position: absolute; top: 33%; left: 50%; transform: translateX(-50%);
             font-size: 5rem; font-weight: 900;
@@ -142,6 +209,20 @@
             setTimeout(() => { overlay.style.display = 'none'; }, 400);
         }
 
+        // ── 難度設定 ──────────────────────────────────────────────
+        let difficulty = 'novice'; // 'novice' | 'expert'
+
+        function chooseDifficulty(mode) {
+            difficulty = mode;
+            document.getElementById('difficultyOverlay').style.display = 'none';
+            playSfx('click');
+            showScreen('intro', 'intro');
+        }
+
+        function showDifficultyOverlay() {
+            document.getElementById('difficultyOverlay').style.display = 'flex';
+        }
+
         const FISH_KEY = "2280183970ad46e9ae253e08db5e28c5"; 
         const VOICE_ID = "b20abfd2bc2741e0b61f02c54aa93dc3";
         const BASE = `https://raw.githubusercontent.com/alice55505-source/swether/main/`;
@@ -150,10 +231,6 @@
             home: `${BASE}images/cover.jpg`, intro: `${BASE}images/intro.jpg`,
             K1: `${BASE}images/K1.jpg`, K2: `${BASE}images/K2.jpg`, K3: `${BASE}images/K3.jpg`,
             result1: `${BASE}images/result1.jpg`, result2: `${BASE}images/result2.jpg`, result3: `${BASE}images/result3.jpg`,
-            intro_locked: `${BASE}images/btn_start_locked.png`,
-            K1_locked:    `${BASE}images/btn_leve1_locked.png`,
-            K2_locked:    `${BASE}images/btn_leve2_locked.png`,
-            K3_locked:    `${BASE}images/btn_leve3_locked.png`,
         };
 
         // ── 音訊系統 ────────────────────────────────────────────────
@@ -169,19 +246,7 @@
             const files = {
                 click: 'click.mp3', catch: 'catch.mp3', wrong: 'wrong.mp3',
                 bad: 'bad.mp3', good: 'good.mp3',
-                perfect: 'perfect.mp3', normal: 'normal.mp3', ended: 'ended.mp3',
-                voice_intro:   'voice_intro.mp3',
-                voice_k1:      'voice_k1.mp3',
-                voice_k2:      'voice_k2.mp3',
-                voice_k3:      'voice_k3.mp3',
-                voice_good1:   'voice_good1.mp3',
-                voice_good2:   'voice_good2.mp3',
-                voice_bad1:    'voice_bad1.mp3',
-                voice_wrong1:  'voice_wrong1.mp3',
-                voice_wrong2:  'voice_wrong2.mp3',
-                voice_perfect: 'voice_perfect.mp3',
-                voice_normal:  'voice_normal.mp3',
-                voice_ended:   'voice_ended.mp3'
+                perfect: 'perfect.mp3', normal: 'normal.mp3', ended: 'ended.mp3'
             };
             await Promise.all(Object.entries(files).map(async ([key, file]) => {
                 try {
@@ -194,8 +259,6 @@
 
         function playSfx(name, vol = 1) {
             if (!actx || !sfxBuffers[name]) return;
-            // 關卡切換緩衝期：封鎖隨機回饋語音，避免和說明語音重疊
-            if (voiceMuted && (name.startsWith('voice_good') || name.startsWith('voice_bad') || name.startsWith('voice_wrong'))) return;
             try {
                 const src = actx.createBufferSource();
                 src.buffer = sfxBuffers[name];
@@ -264,117 +327,32 @@
         let levelEndTimerId = null;
         let slashPoints = [];
         let isPointerDown = false;
-        // 正確率追蹤
-        let totalFoods = 0;   // 全部出現的食物數
-        let correctCount = 0; // 正確行為數（切到好食物 + 沒切壞食物）
+
+        // ── 新分數系統 ──────────────────────────────────────────────
+        // 每關固定出 15 題正確食物，切對 +20，切錯 -10
+        // 三關總分最低 100（結算時套用封底）
+        const CORRECT_PER_LEVEL = 10;
+        const SCORE_PER_HIT = 30;
+        const SCORE_PENALTY = 10;
+        let correctSpawnCount = 0;  // 本關已出現的正確食物數
 
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-
-        // speak() 播放人聲，新人聲出現時自動切斷上一個
-        let currentVoiceSource = null;
-        let currentVoiceGain = null;
-
-        function speak(sfxKey) {
-            if (!sfxKey || !actx || !sfxBuffers[sfxKey]) return;
-            // 切斷上一個人聲
-            if (currentVoiceSource) {
-                try {
-                    if (currentVoiceGain) {
-                        currentVoiceGain.gain.setValueAtTime(0, actx.currentTime);
-                    }
-                    currentVoiceSource.stop();
-                } catch(e) {}
-                currentVoiceSource = null;
-                currentVoiceGain = null;
-            }
-            try {
-                const src = actx.createBufferSource();
-                src.buffer = sfxBuffers[sfxKey];
-                const gain = actx.createGain();
-                gain.gain.value = 1.0;
-                src.connect(gain).connect(actx.destination);
-                src.start(0);
-                src.onended = () => {
-                    if (currentVoiceSource === src) {
-                        currentVoiceSource = null;
-                        currentVoiceGain = null;
-                    }
-                };
-                currentVoiceSource = src;
-                currentVoiceGain = gain;
-            } catch(e) { console.warn('speak err', e); }
-        }
-
-        function getSfxDuration(key) {
-            if (sfxBuffers[key] && sfxBuffers[key].duration > 0) return sfxBuffers[key].duration;
-            return 3;
-        }
-
-        // 鎖定頁面對應的灰色背景圖
-        const LOCKED_BG = {
-            startBtn:       'intro_locked',
-            k1StartBtn:     'K1_locked',
-            nextLevelBtn_1: 'K2_locked',
-            nextLevelBtn_2: 'K3_locked',
-        };
-
-        // 鎖定頁面對應的解鎖後原始背景圖
-        const UNLOCK_BG = {
-            startBtn:       'intro',
-            k1StartBtn:     'K1',
-            nextLevelBtn_1: 'K2',
-            nextLevelBtn_2: 'K3',
-        };
-
-        function playVoiceThenUnlock(voiceKey, btnId, minWaitMs) {
-            const btn = document.getElementById(btnId);
-            if (!btn) { console.warn('btn not found:', btnId); return; }
-            btn.disabled = true;
-            btn.classList.add('locked');
-            btn.style.pointerEvents = 'none';
-
-            // 換整頁背景為灰色鎖定圖
-            let lockedKey = btnId;
-            if (btnId === 'nextLevelBtn') {
-                lockedKey = currentLevel === 1 ? 'nextLevelBtn_1' : 'nextLevelBtn_2';
-            }
-            const screen = btn.parentElement;
-            if (LOCKED_BG[lockedKey]) screen.style.backgroundImage = `url('${BG_MAP[LOCKED_BG[lockedKey]]}')`;
-
-            const doPlay = () => {
-                speak(voiceKey);
-                const dur = getSfxDuration(voiceKey);
-                const wait = Math.max(dur * 1000, minWaitMs || 2000) - 300;
-                setTimeout(() => {
-                    btn.disabled = false;
-                    btn.classList.remove('locked');
-                    btn.style.pointerEvents = 'auto';
-                    // 換回彩色背景
-                    if (UNLOCK_BG[lockedKey] && BG_MAP[UNLOCK_BG[lockedKey]]) {
-                        screen.style.backgroundImage = `url('${BG_MAP[UNLOCK_BG[lockedKey]]}')`;
-                    }
-                }, wait);
-            };
-            if (sfxBuffers[voiceKey]) { doPlay(); }
-            else {
-                const iv = setInterval(() => {
-                    if (sfxBuffers[voiceKey]) { clearInterval(iv); doPlay(); }
-                }, 200);
-            }
-        }
 
         function showScreen(id, bgKey) {
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
             const target = document.getElementById(id);
             target.classList.add('active');
 
-            // intro 頁：直接顯示灰色鎖定背景，播完語音解鎖
+            // intro 頁：直接顯示背景並解鎖按鈕
             if (id === 'intro') {
-                target.style.backgroundImage = `url('${BG_MAP.intro_locked}')`;
+                target.style.backgroundImage = `url('${BG_MAP.intro}')`;
                 const btn = document.getElementById('startBtn');
                 btn.onclick = () => { playSfx('click'); showK1Screen(); };
-                playVoiceThenUnlock('voice_intro', 'startBtn', 2000);
+                btn.disabled = false;
+                btn.classList.remove('locked');
+                btn.style.pointerEvents = 'auto';
+                btn.style.cursor = 'pointer';
             } else {
                 if (bgKey) target.style.backgroundImage = `url('${BG_MAP[bgKey]}')`;
             }
@@ -395,31 +373,32 @@
             if (spawnTimerId !== null) { clearInterval(spawnTimerId); spawnTimerId = null; }
             if (levelEndTimerId !== null) { clearTimeout(levelEndTimerId); levelEndTimerId = null; }
             isGaming = false;
-            // 靜音隨機語音回饋，避免和說明語音重疊
-            voiceMuted = true;
-            setTimeout(() => { voiceMuted = false; }, 3000);
         }
 
         function showK1Screen() {
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
             const k1 = document.getElementById('k1Screen');
-            k1.style.backgroundImage = `url('${BG_MAP.K1_locked}')`;
+            k1.style.backgroundImage = `url('${BG_MAP.K1}')`;
             k1.classList.add('active');
-            playVoiceThenUnlock('voice_k1', 'k1StartBtn', 2000);
+            const btn = document.getElementById('k1StartBtn');
+            btn.disabled = false;
+            btn.classList.remove('locked');
+            btn.style.pointerEvents = 'auto';
+            btn.style.cursor = 'pointer';
         }
 
         function showBetweenLevel() {
             playSfx('good');
             if (currentLevel < 3) {
-                const lockedBg = currentLevel === 1 ? BG_MAP.K2_locked : BG_MAP.K3_locked;
-                document.getElementById('betweenLevel').style.backgroundImage = `url('${lockedBg}')`;
+                const colorBg = currentLevel === 1 ? BG_MAP.K2 : BG_MAP.K3;
+                document.getElementById('betweenLevel').style.backgroundImage = `url('${colorBg}')`;
                 document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
                 document.getElementById('betweenLevel').classList.add('active');
-
-                const nextVoiceKey = currentLevel === 1 ? 'voice_k2' : 'voice_k3';
-                setTimeout(() => {
-                    playVoiceThenUnlock(nextVoiceKey, 'nextLevelBtn', 2000);
-                }, 800);
+                const btn = document.getElementById('nextLevelBtn');
+                btn.disabled = false;
+                btn.classList.remove('locked');
+                btn.style.pointerEvents = 'auto';
+                btn.style.cursor = 'pointer';
             } else {
                 finishGame();
             }
@@ -435,12 +414,7 @@
 
             currentLevel = level;
             scores[currentLevel] = 0;
-
-            // 第一關開始時重置正確率計數
-            if (level === 1) {
-                totalFoods = 0;
-                correctCount = 0;
-            }
+            correctSpawnCount = 0;  // 重置本關正確食物計數
 
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
             const gc = document.getElementById('gameContainer');
@@ -474,9 +448,10 @@
                 requestAnimationFrame(updateLoop);
             }
 
+            const spawnInterval = difficulty === 'expert' ? 1200 : 1500;
             spawnTimerId = setInterval(() => {
                 if (isGaming) spawnFood();
-            }, 2000);
+            }, spawnInterval);
 
             levelEndTimerId = setTimeout(() => {
                 stopCurrentLevel();
@@ -540,7 +515,17 @@
         }
 
         function spawnFood() {
-            const isWrong = Math.random() < 0.2;
+            // 難度參數
+            const isExpert = difficulty === 'expert';
+            const wrongChance = isExpert ? 0.55 : 0.40;
+            const fallBase   = isExpert ? 1.0  : 0.6;
+            const fallRange  = isExpert ? 0.6  : 0.4;
+            const driftRange = isExpert ? 1.4  : 0.8;
+
+            // 正確食物已出滿後，只出錯誤食物
+            const forceWrong = correctSpawnCount >= CORRECT_PER_LEVEL;
+            const isWrong = forceWrong || Math.random() < wrongChance;
+            if (!isWrong) correctSpawnCount++;
             const pool = isWrong ? WRONG_POOL[currentLevel] : LEVEL_CORRECT[currentLevel];
             const emoji = pool[Math.floor(Math.random() * pool.length)];
             const isBad = BAD_FOODS.includes(emoji);
@@ -551,11 +536,10 @@
             // X 出發點：全寬隨機，確保不超出邊界
             const x = margin + Math.random() * (canvas.width - margin * 2);
 
-            // 從頂部開始，緩慢往下掉落（固定速度，無重力加速）
-            const fallSpeed = 0.6 + Math.random() * 0.4; // 每幀 0.6~1.0 px
+            const fallSpeed = fallBase + Math.random() * fallRange;
 
             // 輕微左右漂移
-            const vx = (Math.random() - 0.5) * 0.8;
+            const vx = (Math.random() - 0.5) * driftRange;
 
             gameItems.push({
                 x: x,
@@ -608,41 +592,87 @@
                 ctx.textAlign = "center";
 
                 if (it.sliced) {
-                    it.fadeAlpha = Math.max(0, it.fadeAlpha - 0.022);
-                    ctx.globalAlpha = it.fadeAlpha;
-                    ctx.font = "90px Arial";
-                    ctx.fillText(it.emoji, it.x - 35, it.y);
-                    ctx.fillText(it.emoji, it.x + 35, it.y);
-                    ctx.globalAlpha = 1.0;
-                    if (it.fadeAlpha <= 0 || it.y > canvas.height + 100) {
+                    // 切半動畫：左半往左飛、右半往右飛，各自旋轉淡出
+                    if (!it.sliceVx) {
+                        // 初始化切片速度（只執行一次）
+                        it.sliceVx  = 4 + Math.random() * 2;   // 水平飛散速度
+                        it.sliceVyL = -3 - Math.random() * 2;  // 左半往上
+                        it.sliceVyR = -3 - Math.random() * 2;  // 右半往上
+                        it.rotL     = 0;
+                        it.rotR     = 0;
+                        it.sliceX   = it.x;  // 固定切割時的位置
+                        it.sliceY   = it.y;
+                        it.halfOffX = 0;
+                        it.halfOffYL = 0;
+                        it.halfOffYR = 0;
+                    }
+                    it.halfOffX  += it.sliceVx;
+                    it.halfOffYL += it.sliceVyL; it.sliceVyL += 0.35;
+                    it.halfOffYR += it.sliceVyR; it.sliceVyR += 0.35;
+                    it.rotL -= 0.07;
+                    it.rotR += 0.07;
+                    it.fadeAlpha = Math.max(0, it.fadeAlpha - 0.018);
+
+                    const ESIZE = 90;
+                    const drawHalf = (side) => {
+                        // side: 'left' | 'right'
+                        const offX = side === 'left' ? -it.halfOffX : it.halfOffX;
+                        const offY = side === 'left' ? it.halfOffYL : it.halfOffYR;
+                        const rot  = side === 'left' ? it.rotL : it.rotR;
+                        const cx   = it.sliceX + offX;
+                        const cy   = it.sliceY + offY;
+
+                        ctx.save();
+                        ctx.globalAlpha = it.fadeAlpha;
+                        ctx.translate(cx, cy);
+                        ctx.rotate(rot);
+
+                        // clip 只顯示左半或右半
+                        ctx.beginPath();
+                        if (side === 'left') {
+                            ctx.rect(-ESIZE, -ESIZE, ESIZE, ESIZE * 2);
+                        } else {
+                            ctx.rect(0, -ESIZE, ESIZE, ESIZE * 2);
+                        }
+                        ctx.clip();
+
+                        ctx.font = `${ESIZE}px Arial`;
+                        ctx.textAlign = "center";
+                        ctx.textBaseline = "middle";
+                        ctx.fillText(it.emoji, 0, 0);
+                        ctx.restore();
+                    };
+
+                    drawHalf('left');
+                    drawHalf('right');
+
+                    if (it.fadeAlpha <= 0 || it.sliceY + it.halfOffYL > canvas.height + 100) {
                         gameItems.splice(i, 1);
                     }
                 } else {
                     ctx.font = "90px Arial";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
                     ctx.fillText(it.emoji, it.x, it.y);
 
                     // 食物名稱標籤（白底圓角，大字）
                     if (it.label) {
                         ctx.font = "bold 34px sans-serif";
+                        ctx.textBaseline = "alphabetic";
                         const tw = ctx.measureText(it.label).width;
-                        const pad = 12, labelY = it.y + 18;
+                        const pad = 12, labelY = it.y + 58;
                         ctx.save();
                         ctx.fillStyle = "rgba(255,255,255,0.95)";
                         ctx.beginPath();
                         ctx.roundRect(it.x - tw/2 - pad, labelY - 28, tw + pad*2, 40, 10);
                         ctx.fill();
                         ctx.fillStyle = "#000";
+                        ctx.textAlign = "center";
                         ctx.fillText(it.label, it.x, labelY);
                         ctx.restore();
                     }
 
                     if (it.y > canvas.height + 100) {
-                        // 食物掉落離開畫面，計算正確率
-                        if (!it.sliced) {
-                            totalFoods++;
-                            if (it.isWrong) correctCount++; // 壞食物沒切 = 正確
-                            // 好食物沒切 = 錯誤，不加 correctCount
-                        }
                         gameItems.splice(i, 1);
                     }
                 }
@@ -669,7 +699,8 @@
             const levelNames = { 1: '🥩 蛋白質', 2: '🥦 蔬菜', 3: '🍚 澱粉' };
             const levelName = levelNames[currentLevel] || '';
             ctx.save();
-            const scoreText = "得分：" + scores[currentLevel];
+            const totalSoFar = scores[1] + scores[2] + scores[3];
+            const scoreText = "得分：" + totalSoFar;
             ctx.font = "bold 52px sans-serif";
             const sw = ctx.measureText(scoreText).width;
             // 關卡名稱（左側小標）
@@ -719,33 +750,23 @@
                     it.sliced = true;
                     totalFoods++;
                     if (it.isWrong) {
-                        scores[currentLevel] = Math.max(0, scores[currentLevel] - 10);
+                        scores[currentLevel] = Math.max(0, scores[currentLevel] - SCORE_PENALTY);
                         if (it.isBad) {
-                            spawnFloatingText(it.x, it.y - 70, "-10 ❌", "#e74c3c");
+                            spawnFloatingText(it.x, it.y - 70, `-${SCORE_PENALTY} ❌`, "#e74c3c");
                             flashScreen("rgba(231,76,60,0.3)");
                             setGameBg(3);
                             playSfx('bad');
-                            if (Math.random() < 0.4) speak('voice_bad1');
                         } else {
-                            spawnFloatingText(it.x, it.y - 70, "-10 ⚠️", "#e67e22");
+                            spawnFloatingText(it.x, it.y - 70, `-${SCORE_PENALTY} ⚠️`, "#e67e22");
                             flashScreen("rgba(230,126,34,0.25)");
                             setGameBg(2);
                             playSfx('wrong');
-                            if (Math.random() < 0.35) {
-                                const keys = ['voice_wrong1', 'voice_wrong2'];
-                                speak(keys[Math.floor(Math.random() * keys.length)]);
-                            }
                         }
                     } else {
-                        correctCount++; // 好食物切到 = 正確
-                        scores[currentLevel] += 10;
-                        spawnFloatingText(it.x, it.y - 70, "+10 ✨", "#27ae60");
+                        scores[currentLevel] += SCORE_PER_HIT;
+                        spawnFloatingText(it.x, it.y - 70, `+${SCORE_PER_HIT} ✨`, "#27ae60");
                         setGameBg(1);
                         playSfx('catch');
-                        if (Math.random() < 0.25) {
-                            const keys = ['voice_good1', 'voice_good2'];
-                            speak(keys[Math.floor(Math.random() * keys.length)]);
-                        }
                     }
                 }
             }
@@ -813,15 +834,83 @@
             flashAlpha = Math.max(0, flashAlpha - 0.06);
         }
 
+
+        // ── 灑花系統 ──────────────────────────────────────────────
+        let confettiAnimId = null;
+        let confettiParticles = [];
+
+        let confettiRafId = null;
+        let confettiIntervalId = null;
+
+        function startConfetti() {
+            stopConfetti();
+            const cc = document.getElementById('confettiCanvas');
+            cc.width = window.innerWidth;
+            cc.height = window.innerHeight;
+            const cx = cc.getContext('2d');
+            confettiParticles = [];
+            const colors = ['#f94144','#f3722c','#f8961e','#f9c74f','#90be6d','#43aa8b','#577590','#c77dff','#ff99c8'];
+
+            function spawnBurst() {
+                for (let i = 0; i < 12; i++) {
+                    confettiParticles.push({
+                        x: Math.random() * cc.width,
+                        y: -10,
+                        w: 8 + Math.random() * 10,
+                        h: 4 + Math.random() * 6,
+                        color: colors[Math.floor(Math.random() * colors.length)],
+                        vx: (Math.random() - 0.5) * 3,
+                        vy: 2 + Math.random() * 3,
+                        rot: Math.random() * Math.PI * 2,
+                        rotV: (Math.random() - 0.5) * 0.2
+                    });
+                }
+            }
+
+            confettiIntervalId = setInterval(spawnBurst, 180);
+            spawnBurst();
+
+            function loop() {
+                cx.clearRect(0, 0, cc.width, cc.height);
+                for (let i = confettiParticles.length - 1; i >= 0; i--) {
+                    const p = confettiParticles[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.rot += p.rotV;
+                    if (p.y > cc.height + 20) { confettiParticles.splice(i, 1); continue; }
+                    cx.save();
+                    cx.translate(p.x, p.y);
+                    cx.rotate(p.rot);
+                    cx.fillStyle = p.color;
+                    cx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+                    cx.restore();
+                }
+                confettiRafId = requestAnimationFrame(loop);
+            }
+            loop();
+        }
+
+        function stopConfetti() {
+            if (confettiIntervalId) { clearInterval(confettiIntervalId); confettiIntervalId = null; }
+            if (confettiRafId) { cancelAnimationFrame(confettiRafId); confettiRafId = null; }
+            const cc = document.getElementById('confettiCanvas');
+            if (cc) cc.getContext('2d').clearRect(0, 0, cc.width, cc.height);
+            confettiParticles = [];
+        }
+
         function finishGame() {
             stopBgm();
-            const accuracy = totalFoods > 0 ? Math.round((correctCount / totalFoods) * 100) : 0;
-            const resKey = accuracy >= 80 ? 'result1' : (accuracy >= 50 ? 'result2' : 'result3');
-            const sfxName = accuracy >= 80 ? 'perfect' : (accuracy >= 50 ? 'normal' : 'ended');
+            const rawTotal = scores[1] + scores[2] + scores[3];
+            // 基礎分 100 + 實際得分，最低 100，最高 1000
+            const finalScore = rawTotal >= 900 ? 1000 : Math.max(100, rawTotal + 100);
+            const resKey = finalScore >= 600 ? 'result1' : (finalScore >= 300 ? 'result2' : 'result3');
+            const sfxName = finalScore >= 600 ? 'perfect' : (finalScore >= 300 ? 'normal' : 'ended');
             showScreen('result', resKey);
+            stopConfetti();
+            if (resKey === 'result1') setTimeout(startConfetti, 300);
             const scoreColors = { result1: '#1a5fa8', result2: '#1a7a2e', result3: '#c0392b' };
             const scoreEl = document.getElementById('result-score');
-            scoreEl.textContent = accuracy;
+            scoreEl.textContent = finalScore;
             scoreEl.style.color = scoreColors[resKey];
             scoreEl.style.textShadow = `2px 2px 0 white, -2px -2px 0 white, 2px -2px 0 white, -2px 2px 0 white`;
             setTimeout(() => {
@@ -839,8 +928,6 @@
                     src.stop(actx.currentTime + 6);
                 } catch(e) { console.warn('result sfx err', e); }
             }, 300);
-            const voiceKey = accuracy >= 80 ? 'voice_perfect' : (accuracy >= 50 ? 'voice_normal' : 'voice_ended');
-            setTimeout(() => speak(voiceKey), 800);
         }
 
         // Handle window resize gracefully
@@ -854,10 +941,6 @@
         // 頁面隱藏或關閉時停止所有聲音
         function stopAllAudio() {
             stopBgm();
-            if (currentVoiceSource) {
-                try { currentVoiceSource.stop(); } catch(e) {}
-                currentVoiceSource = null;
-            }
             if (actx) {
                 try { actx.suspend(); } catch(e) {}
             }
