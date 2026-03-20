@@ -748,7 +748,6 @@
             for (const it of gameItems) {
                 if (!it.sliced && Math.hypot(it.x - x, it.y - y) < 70) {
                     it.sliced = true;
-                    totalFoods++;
                     if (it.isWrong) {
                         scores[currentLevel] = Math.max(0, scores[currentLevel] - SCORE_PENALTY);
                         if (it.isBad) {
