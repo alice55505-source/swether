@@ -174,32 +174,32 @@
         let soundPermissionGranted = false;
 
         let grantFired = false;
-        async function grantSoundPermission() {
+        function grantSoundPermission() {
             if (grantFired) return;
             grantFired = true;
             soundPermissionGranted = true;
-            const overlay = document.getElementById('soundPermissionOverlay');
 
-            // 立即觸發 AudioContext（需在用戶手勢事件內）
-            const AC = window.AudioContext || window.webkitAudioContext;
-            if (AC) {
-                if (!actx) actx = new AC();
-                await actx.resume().catch(()=>{});
-            }
+            // 同步建立 AudioContext（必須在手勢事件的同步範圍內）
+            try {
+                const AC = window.AudioContext || window.webkitAudioContext;
+                if (AC && !actx) actx = new AC();
+                if (actx) actx.resume().catch(() => {});
+            } catch(e) {}
 
-            // 嘗試播放一段靜音 audio 來解鎖手機靜音開關（iOS Silent Mode）
+            // 靜音音檔解鎖 iOS 靜音開關（不 await，不卡住）
             try {
                 const silentAudio = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=");
                 silentAudio.volume = 0.01;
-                await silentAudio.play();
-            } catch(e) { /* 忽略 */ }
+                silentAudio.play().catch(() => {});
+            } catch(e) {}
 
-            // ✅ 先關閉授權彈窗，不等音效載完，避免卡住
+            // 立刻關閉彈窗，不等任何非同步操作
+            const overlay = document.getElementById('soundPermissionOverlay');
             overlay.style.transition = 'opacity 0.4s';
             overlay.style.opacity = '0';
             setTimeout(() => { overlay.style.display = 'none'; }, 400);
 
-            // 音效在背景非同步載入，載完再播 BGM，不卡住流程
+            // 音效背景載入，不阻塞流程
             audioInitialized = true;
             initAudioPool().then(() => startBgm()).catch(() => {});
         }
@@ -315,13 +315,9 @@
 
         // 手機瀏覽器需要用戶手勢才能解鎖 AudioContext
         let audioInitialized = false;
-        async function ensureAudio() {
-            if (!audioInitialized) {
-                audioInitialized = true;
-                await initAudioPool();
-            }
+        function ensureAudio() {
             if (actx && actx.state === 'suspended') {
-                await actx.resume().catch(()=>{});
+                actx.resume().catch(() => {});
             }
         }
 
