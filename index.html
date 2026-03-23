@@ -194,15 +194,14 @@
                 await silentAudio.play();
             } catch(e) { /* 忽略 */ }
 
-            // 關閉授權彈窗
+            // ✅ 先關閉授權彈窗，不等音效載完，避免卡住
             overlay.style.transition = 'opacity 0.4s';
             overlay.style.opacity = '0';
             setTimeout(() => { overlay.style.display = 'none'; }, 400);
 
-            // 在手勢解鎖後才開始載入音檔並播 BGM
+            // 音效在背景非同步載入，載完再播 BGM，不卡住流程
             audioInitialized = true;
-            await initAudioPool();
-            startBgm();
+            initAudioPool().then(() => startBgm()).catch(() => {});
         }
 
         function denySoundPermission() {
