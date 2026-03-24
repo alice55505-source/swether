@@ -186,20 +186,47 @@
                 if (actx) actx.resume().catch(() => {});
             } catch(e) {}
 
-            // 靜音音檔解鎖 iOS 靜音開關（不 await，不卡住）
+            // 靜音音檔解鎖 iOS 靜音開關
             try {
                 const silentAudio = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=");
                 silentAudio.volume = 0.01;
                 silentAudio.play().catch(() => {});
             } catch(e) {}
 
-            // 立刻關閉彈窗，不等任何非同步操作
+            // 在手勢當下預先建立並解鎖 bgmAudio 和 cheerAudio
+            try {
+                if (!bgmAudio) {
+                    bgmAudio = new Audio(`${BASE}sounds/bgm.mp3`);
+                    bgmAudio.loop = true;
+                    bgmAudio.volume = 0;
+                }
+                bgmAudio.play().then(() => {
+                    bgmAudio.pause();
+                    bgmAudio.currentTime = 0;
+                    bgmAudio.volume = 0.4;
+                }).catch(() => {});
+            } catch(e) {}
+
+            try {
+                if (!cheerAudio) {
+                    cheerAudio = new Audio(`${BASE}sounds/cheer.mp3`);
+                    cheerAudio.volume = 0;
+                }
+                // 播一下再暫停，讓 iOS 記住授權
+                cheerAudio.play().then(() => {
+                    cheerAudio.pause();
+                    cheerAudio.currentTime = 0;
+                    cheerAudio.volume = 0.6;
+                }).catch(() => {});
+            } catch(e) {}
+
+            // 立刻關閉彈窗
             const overlay = document.getElementById('soundPermissionOverlay');
             overlay.style.transition = 'opacity 0.4s';
             overlay.style.opacity = '0';
             setTimeout(() => { overlay.style.display = 'none'; }, 400);
 
-            // 音效背景載入，不阻塞流程
+            // 音效背景載入，載完後正式播 BGM
             audioInitialized = true;
             initAudioPool().then(() => startBgm()).catch(() => {});
         }
@@ -253,8 +280,7 @@
             const files = {
                 click: 'click.mp3', catch: 'catch.mp3', wrong: 'wrong.mp3',
                 bad: 'bad.mp3', good: 'good.mp3',
-                perfect: 'perfect.mp3', normal: 'normal.mp3', ended: 'ended.mp3',
-                cheer: 'cheer.mp3'
+                perfect: 'perfect.mp3', normal: 'normal.mp3', ended: 'ended.mp3'
             };
             await Promise.all(Object.entries(files).map(async ([key, file]) => {
                 try {
@@ -280,30 +306,24 @@
         // 向下相容的 catch 音效呼叫
         function playCatchSound() { playSfx('catch'); }
 
-        // BGM 用 <audio> 標籤播放
+        // BGM 和 cheer 用 <audio> 標籤播放（iOS 相容性較佳）
         let bgmAudio = null;
         let bgmPlaying = false;
+        let cheerAudio = null;
 
         function startBgm() {
             if (bgmPlaying) return;
+            // bgmAudio 已在手勢授權時建立，直接播
             if (!bgmAudio) {
-                bgmAudio = new Audio();
-                bgmAudio.loop = true;
-                bgmAudio.volume = 0.4;
-                bgmAudio.crossOrigin = "anonymous";
-                bgmAudio.src = `${BASE}sounds/bgm.mp3`;
-            }
-            bgmAudio.play().then(() => {
-                bgmPlaying = true;
-                console.log('BGM started ✅');
-            }).catch(e => {
-                console.warn('BGM start error:', e);
-                // CORS 失敗時不用 crossOrigin 再試一次
                 bgmAudio = new Audio(`${BASE}sounds/bgm.mp3`);
                 bgmAudio.loop = true;
                 bgmAudio.volume = 0.4;
-                bgmAudio.play().then(() => { bgmPlaying = true; }).catch(()=>{});
-            });
+            }
+            bgmAudio.volume = 0.4;
+            bgmAudio.currentTime = 0;
+            bgmAudio.play().then(() => {
+                bgmPlaying = true;
+            }).catch(() => {});
         }
 
         function stopBgm() {
@@ -932,26 +952,17 @@
             scoreEl.textContent = finalScore;
             scoreEl.style.color = scoreColors[resKey];
             scoreEl.style.textShadow = `2px 2px 0 white, -2px -2px 0 white, 2px -2px 0 white, -2px 2px 0 white`;
-            // 等 cheer buffer 載完再播，最多等 8 秒
-            function playCheerWhenReady(waited) {
-                if (!actx) return;
-                if (sfxBuffers[sfxName]) {
-                    try {
-                        const src = actx.createBufferSource();
-                        src.buffer = sfxBuffers[sfxName];
-                        const gain = actx.createGain();
-                        gain.gain.value = 0.6;
-                        src.connect(gain).connect(actx.destination);
-                        src.start(0);
-                        gain.gain.setValueAtTime(0.6, actx.currentTime + 5);
-                        gain.gain.linearRampToValueAtTime(0, actx.currentTime + 6);
-                        src.stop(actx.currentTime + 6);
-                    } catch(e) { console.warn('cheer sfx err', e); }
-                } else if (waited < 8000) {
-                    setTimeout(() => playCheerWhenReady(waited + 300), 300);
-                }
-            }
-            setTimeout(() => playCheerWhenReady(0), 300);
+            // 用 <audio> 播歡呼音效（iOS 相容性最佳）
+            setTimeout(() => {
+                try {
+                    if (!cheerAudio) {
+                        cheerAudio = new Audio(`${BASE}sounds/cheer.mp3`);
+                    }
+                    cheerAudio.currentTime = 0;
+                    cheerAudio.volume = 0.6;
+                    cheerAudio.play().catch(() => {});
+                } catch(e) {}
+            }, 300);
         }
 
         // Handle window resize gracefully
