@@ -253,7 +253,8 @@
             const files = {
                 click: 'click.mp3', catch: 'catch.mp3', wrong: 'wrong.mp3',
                 bad: 'bad.mp3', good: 'good.mp3',
-                perfect: 'perfect.mp3', normal: 'normal.mp3', ended: 'ended.mp3'
+                perfect: 'perfect.mp3', normal: 'normal.mp3', ended: 'ended.mp3',
+                cheer: 'cheer.mp3'
             };
             await Promise.all(Object.entries(files).map(async ([key, file]) => {
                 try {
@@ -334,10 +335,9 @@
         // ── 新分數系統 ──────────────────────────────────────────────
         // 每關固定出 15 題正確食物，切對 +20，切錯 -10
         // 三關總分最低 100（結算時套用封底）
-        const CORRECT_PER_LEVEL = 10;
-        const SCORE_PER_HIT = 30;
+        const SCORE_PER_HIT = 50;
         const SCORE_PENALTY = 10;
-        let correctSpawnCount = 0;  // 本關已出現的正確食物數
+        let correctSpawnCount = 0;  // 本關已出現的正確食物數（保留供難度比例使用）
 
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
@@ -542,9 +542,7 @@
             const fallRange  = isExpert ? 0.6  : 0.4;
             const driftRange = isExpert ? 1.4  : 0.8;
 
-            // 正確食物已出滿後，只出錯誤食物
-            const forceWrong = correctSpawnCount >= CORRECT_PER_LEVEL;
-            const isWrong = forceWrong || Math.random() < wrongChance;
+            const isWrong = Math.random() < wrongChance;
             if (!isWrong) correctSpawnCount++;
             const pool = isWrong ? WRONG_POOL[currentLevel] : LEVEL_CORRECT[currentLevel];
             const emoji = pool[Math.floor(Math.random() * pool.length)];
@@ -921,10 +919,9 @@
         function finishGame() {
             stopBgm();
             const rawTotal = scores[1] + scores[2] + scores[3];
-            // 基礎分 100 + 實際得分，最低 100，最高 1000
-            const finalScore = rawTotal >= 900 ? 1000 : Math.max(100, rawTotal + 100);
-            const resKey = finalScore >= 600 ? 'result1' : (finalScore >= 300 ? 'result2' : 'result3');
-            const sfxName = finalScore >= 600 ? 'perfect' : (finalScore >= 300 ? 'normal' : 'ended');
+            const finalScore = Math.max(100, rawTotal);  // 保底 100，無上限
+            const resKey = finalScore >= 500 ? 'result1' : (finalScore >= 300 ? 'result2' : 'result3');
+            const sfxName = 'cheer';  // 不論結果都播歡呼音效
             showScreen('result', resKey);
             stopConfetti();
             if (resKey === 'result1') setTimeout(startConfetti, 300);
