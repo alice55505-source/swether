@@ -713,35 +713,37 @@
                 if (ft.alpha <= 0) floatingTexts.splice(i, 1);
             }
 
-            // --- Score display（右上角大字帶底框）---
+            // --- Score display（右上角，關卡名稱 + 得分各一行）---
             const levelNames = { 1: '🥩 蛋白質', 2: '🥦 蔬菜', 3: '🍚 澱粉' };
             const levelName = levelNames[currentLevel] || '';
             ctx.save();
+            ctx.shadowColor = "rgba(0,0,0,0.7)";
+            ctx.shadowBlur = 4;
             const totalSoFar = scores[1] + scores[2] + scores[3];
             const scoreText = "得分：" + totalSoFar;
-            ctx.font = "bold 52px sans-serif";
-            const sw = ctx.measureText(scoreText).width;
-            // 關卡名稱（左側小標）
-            ctx.font = "bold 36px sans-serif";
+            const pad = 16;
+
+            // 第一行：關卡名稱
+            ctx.font = "bold 32px sans-serif";
             const lw = ctx.measureText(levelName).width;
             ctx.fillStyle = "rgba(0,0,0,0.45)";
             ctx.beginPath();
-            ctx.roundRect(canvas.width - sw - lw - 60, 12, lw + 28, 62, 12);
+            ctx.roundRect(canvas.width - lw - pad * 2 - 8, 8, lw + pad * 2, 44, 10);
             ctx.fill();
             ctx.fillStyle = "#ffffff";
-            ctx.textAlign = "left";
-            ctx.shadowColor = "rgba(0,0,0,0.7)";
-            ctx.shadowBlur = 4;
-            ctx.fillText(levelName, canvas.width - sw - lw - 46, 58);
-            // 得分（右側）
-            ctx.font = "bold 52px sans-serif";
+            ctx.textAlign = "right";
+            ctx.fillText(levelName, canvas.width - pad, 42);
+
+            // 第二行：得分
+            ctx.font = "bold 40px sans-serif";
+            const sw = ctx.measureText(scoreText).width;
             ctx.fillStyle = "rgba(0,0,0,0.45)";
             ctx.beginPath();
-            ctx.roundRect(canvas.width - sw - 36, 12, sw + 28, 62, 12);
+            ctx.roundRect(canvas.width - sw - pad * 2 - 8, 58, sw + pad * 2, 48, 10);
             ctx.fill();
             ctx.fillStyle = "#ffe066";
             ctx.textAlign = "right";
-            ctx.fillText(scoreText, canvas.width - 22, 62);
+            ctx.fillText(scoreText, canvas.width - pad, 95);
             ctx.restore();
 
             // FIX 2: keep loop alive while gaming OR while items/trail still visible
@@ -930,21 +932,26 @@
             scoreEl.textContent = finalScore;
             scoreEl.style.color = scoreColors[resKey];
             scoreEl.style.textShadow = `2px 2px 0 white, -2px -2px 0 white, 2px -2px 0 white, -2px 2px 0 white`;
-            setTimeout(() => {
-                if (!actx || !sfxBuffers[sfxName]) return;
-                try {
-                    const src = actx.createBufferSource();
-                    src.buffer = sfxBuffers[sfxName];
-                    const gain = actx.createGain();
-                    gain.gain.value = 0.3;
-                    src.connect(gain).connect(actx.destination);
-                    src.start(0);
-                    // 5 秒後開始漸弱，1 秒內淡出
-                    gain.gain.setValueAtTime(0.3, actx.currentTime + 5);
-                    gain.gain.linearRampToValueAtTime(0, actx.currentTime + 6);
-                    src.stop(actx.currentTime + 6);
-                } catch(e) { console.warn('result sfx err', e); }
-            }, 300);
+            // 等 cheer buffer 載完再播，最多等 8 秒
+            function playCheerWhenReady(waited) {
+                if (!actx) return;
+                if (sfxBuffers[sfxName]) {
+                    try {
+                        const src = actx.createBufferSource();
+                        src.buffer = sfxBuffers[sfxName];
+                        const gain = actx.createGain();
+                        gain.gain.value = 0.6;
+                        src.connect(gain).connect(actx.destination);
+                        src.start(0);
+                        gain.gain.setValueAtTime(0.6, actx.currentTime + 5);
+                        gain.gain.linearRampToValueAtTime(0, actx.currentTime + 6);
+                        src.stop(actx.currentTime + 6);
+                    } catch(e) { console.warn('cheer sfx err', e); }
+                } else if (waited < 8000) {
+                    setTimeout(() => playCheerWhenReady(waited + 300), 300);
+                }
+            }
+            setTimeout(() => playCheerWhenReady(0), 300);
         }
 
         // Handle window resize gracefully
