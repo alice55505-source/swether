@@ -382,6 +382,9 @@
         }
 
         function initGame() {
+            // 初始化 canvas 尺寸（平板 / 大螢幕）
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
             // load 時只設背景，不播音樂（手機需等用戶手勢）
             const home = document.getElementById('home');
             home.style.backgroundImage = `url('${BG_MAP.home}')`;
@@ -507,7 +510,7 @@
             "🥦":"花椰菜","🥕":"紅蘿蔔","🥬":"青菜","🍅":"番茄",
             "🧅":"洋蔥","🥒":"小黃瓜","🌿":"菠菜","🍄":"香菇",
             "🍠":"地瓜","🥔":"馬鈴薯","🎃":"南瓜","🌽":"玉米","🥣":"燕麥","🍚":"糙米",
-            "🫓":"雜糧餅","🍞":"全麥麵包","🌾":"藜麥",
+            "🫓":"雜糧餅","🍞":"全麥麵包",
             "🌭":"熱狗","🍔":"漢堡","🥓":"培根","🍟":"薯條",
             "🍰":"蛋糕","🍩":"甜甜圈","🧁":"杯子蛋糕","🍪":"餅乾"
         };
@@ -517,7 +520,7 @@
             null,
             ["🐟","🦐","🐠","🍗","🥚","🥩","🥛","🍶","🧀","🦪","🥜"],
             ["🥦","🥕","🥬","🍅","🧅","🥒","🌿","🍄"],
-            ["🍠","🥔","🎃","🌽","🥣","🍚","🫓","🍞","🌾"]
+            ["🍠","🥔","🎃","🌽","🥣","🍚","🫓","🍞"]
         ];
 
         const BAD_FOODS = ["🌭","🍔","🥓","🍟","🍰","🍩","🧁","🍪"];
@@ -554,13 +557,16 @@
             }
         }
 
+        // 防重疊：把畫面橫切成幾個格子，輪流從不同格子出現
+        let spawnSlotIndex = 0;
+
         function spawnFood() {
             // 難度參數
             const isExpert = difficulty === 'expert';
             const wrongChance = isExpert ? 0.55 : 0.40;
             const fallBase   = isExpert ? 1.0  : 0.6;
             const fallRange  = isExpert ? 0.6  : 0.4;
-            const driftRange = isExpert ? 1.4  : 0.8;
+            const driftRange = isExpert ? 0.6  : 0.3;
 
             const isWrong = Math.random() < wrongChance;
             if (!isWrong) correctSpawnCount++;
@@ -568,11 +574,16 @@
             const emoji = pool[Math.floor(Math.random() * pool.length)];
             const isBad = BAD_FOODS.includes(emoji);
 
-            const FOOD_SIZE = 90;
-            const margin = FOOD_SIZE + 20;
-
-            // X 出發點：全寬隨機，確保不超出邊界
-            const x = margin + Math.random() * (canvas.width - margin * 2);
+            const FOOD_SIZE = 120;
+            const SLOTS = 4;  // 把畫面切成 4 個格子
+            const slotW = canvas.width / SLOTS;
+            // 在目前格子內隨機偏移，確保不超出邊界
+            const slotX = (spawnSlotIndex % SLOTS) * slotW;
+            const margin = FOOD_SIZE / 2 + 10;
+            const xMin = Math.max(margin, slotX + margin);
+            const xMax = Math.min(canvas.width - margin, slotX + slotW - margin);
+            const x = xMin + Math.random() * Math.max(0, xMax - xMin);
+            spawnSlotIndex = (spawnSlotIndex + 1) % SLOTS;
 
             const fallSpeed = fallBase + Math.random() * fallRange;
 
@@ -581,7 +592,7 @@
 
             gameItems.push({
                 x: x,
-                y: -FOOD_SIZE,
+                y: -120,  // FOOD_SIZE=120
                 vy: fallSpeed,
                 vx: vx,
                 gravity: 0,
@@ -624,7 +635,7 @@
                 it.vy += (it.gravity ?? 0.22);
 
                 // 輕微左右漂移，到邊界就反向
-                const FSIZE = 50;
+                const FSIZE = 60;
                 if (it.x < FSIZE || it.x > canvas.width - FSIZE) { it.vx *= -1; }
 
                 ctx.textAlign = "center";
@@ -651,7 +662,7 @@
                     it.rotR += 0.07;
                     it.fadeAlpha = Math.max(0, it.fadeAlpha - 0.018);
 
-                    const ESIZE = 90;
+                    const ESIZE = 120;
                     const drawHalf = (side) => {
                         // side: 'left' | 'right'
                         const offX = side === 'left' ? -it.halfOffX : it.halfOffX;
@@ -688,21 +699,21 @@
                         gameItems.splice(i, 1);
                     }
                 } else {
-                    ctx.font = "90px Arial";
+                    ctx.font = "120px Arial";
                     ctx.textAlign = "center";
                     ctx.textBaseline = "middle";
                     ctx.fillText(it.emoji, it.x, it.y);
 
-                    // 食物名稱標籤（白底圓角，大字）
+                    // 食物名稱標籤（白底圓角，小字）
                     if (it.label) {
-                        ctx.font = "bold 34px sans-serif";
+                        ctx.font = "bold 22px sans-serif";
                         ctx.textBaseline = "alphabetic";
                         const tw = ctx.measureText(it.label).width;
-                        const pad = 12, labelY = it.y + 58;
+                        const pad = 10, labelY = it.y + 72;
                         ctx.save();
                         ctx.fillStyle = "rgba(255,255,255,0.95)";
                         ctx.beginPath();
-                        ctx.roundRect(it.x - tw/2 - pad, labelY - 28, tw + pad*2, 40, 10);
+                        ctx.roundRect(it.x - tw/2 - pad, labelY - 22, tw + pad*2, 30, 8);
                         ctx.fill();
                         ctx.fillStyle = "#000";
                         ctx.textAlign = "center";
@@ -967,10 +978,10 @@
 
         // Handle window resize gracefully
         window.addEventListener('resize', () => {
-            if (document.getElementById('gameContainer').classList.contains('active')) {
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
-            }
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            const cc = document.getElementById('confettiCanvas');
+            if (cc) { cc.width = window.innerWidth; cc.height = window.innerHeight; }
         });
 
         // 頁面隱藏或關閉時停止所有聲音
