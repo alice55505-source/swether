@@ -5,11 +5,69 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Swether - 營養切切樂</title>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #fdfae7; font-family: sans-serif; }
-        .screen { display: none; width: 100%; height: 100%; position: absolute; top: 0; left: 0; background-size: cover; background-position: center; flex-direction: column; align-items: center; justify-content: flex-end; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+        * { box-sizing: border-box; }
+        body, html {
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
+            overflow: hidden;
+            background: #fdfae7;
+            font-family: sans-serif;
+        }
+
+        /* ── 全域版面：以最窄邊為基準，保持 9:16 直向比例置中 ── */
+        #gameWrapper {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #000;
+        }
+        #gameArea {
+            position: relative;
+            /* 維持 9:16，寬不超過螢幕高度的 9/16，高不超過螢幕高度 */
+            width: min(100vw, calc(100dvh * 9 / 16));
+            height: min(100dvh, calc(100vw * 16 / 9));
+            overflow: hidden;
+            background: #fdfae7;
+        }
+
+        .screen {
+            display: none;
+            width: 100%; height: 100%;
+            position: absolute; top: 0; left: 0;
+            background-size: cover;
+            background-position: center;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
         .active { display: flex; }
-        #gameCanvas { display: block; width: 100%; height: 100%; touch-action: none; z-index: 5; cursor: crosshair; }
-        .btn { width: 85%; height: 15%; margin-bottom: 12%; cursor: pointer; background: transparent; border: none; outline: none; -webkit-tap-highlight-color: transparent; z-index: 20; background-size: 100% 100%; background-repeat: no-repeat; background-position: center; }
+
+        #gameCanvas {
+            display: block;
+            width: 100%; height: 100%;
+            touch-action: none;
+            z-index: 5;
+            cursor: crosshair;
+        }
+
+        .btn {
+            width: 85%;
+            height: 15%;
+            margin-bottom: 12%;
+            cursor: pointer;
+            background: transparent;
+            border: none; outline: none;
+            -webkit-tap-highlight-color: transparent;
+            z-index: 20;
+            background-size: 100% 100%;
+            background-repeat: no-repeat;
+            background-position: center;
+        }
         .btn.locked { cursor: not-allowed; }
         #game-tips { display: none !important; }
         #loading { display: flex; justify-content: center; align-items: center; background: #fdfae7; z-index: 100; font-size: 1.5rem; font-weight: bold; cursor: pointer; }
@@ -17,7 +75,7 @@
         /* 音效授權頁 */
         #soundPermissionOverlay {
             display: flex;
-            position: fixed;
+            position: absolute;
             top: 0; left: 0;
             width: 100%; height: 100%;
             background: #fff8e7;
@@ -75,7 +133,7 @@
         /* 難度選擇浮層 */
         #difficultyOverlay {
             display: none;
-            position: fixed;
+            position: absolute;
             top: 0; left: 0;
             width: 100%; height: 100%;
             background: rgba(0,0,0,0.55);
@@ -131,6 +189,7 @@
     </style>
 </head>
 <body>
+<div id="gameWrapper"><div id="gameArea">
 
     <!-- 🔊 音效授權彈窗（第一次開啟時顯示） -->
     <div id="soundPermissionOverlay">
@@ -207,17 +266,14 @@
                 }).catch(() => {});
             } catch(e) {}
 
+            // 預先建立 cheerAudio 並 load，不播放（避免開頭出現歡呼聲）
+            // iOS 只要在手勢當下 new Audio() 並 load() 就能解鎖後續播放
             try {
                 if (!cheerAudio) {
                     cheerAudio = new Audio(`${BASE}sounds/cheer.mp3`);
-                    cheerAudio.volume = 0;
-                }
-                // 播一下再暫停，讓 iOS 記住授權
-                cheerAudio.play().then(() => {
-                    cheerAudio.pause();
-                    cheerAudio.currentTime = 0;
                     cheerAudio.volume = 0.6;
-                }).catch(() => {});
+                    cheerAudio.load();
+                }
             } catch(e) {}
 
             // 立刻關閉彈窗
@@ -383,8 +439,8 @@
 
         function initGame() {
             // 初始化 canvas 尺寸（平板 / 大螢幕）
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+            canvas.width = document.getElementById('gameArea').clientWidth;
+            canvas.height = document.getElementById('gameArea').clientHeight;
             // load 時只設背景，不播音樂（手機需等用戶手勢）
             const home = document.getElementById('home');
             home.style.backgroundImage = `url('${BG_MAP.home}')`;
@@ -465,9 +521,10 @@
             gc.classList.add('active');
 
             // FIX 6: only resize canvas when dimensions actually changed to avoid wiping ctx state mid-game
-            if (canvas.width !== window.innerWidth || canvas.height !== window.innerHeight) {
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
+            const ga = document.getElementById('gameArea');
+            if (canvas.width !== ga.clientWidth || canvas.height !== ga.clientHeight) {
+                canvas.width = document.getElementById('gameArea').clientWidth;
+                canvas.height = document.getElementById('gameArea').clientHeight;
             }
 
             const tipTitles = ["", "第一關：優質蛋白質 🥩", "第二關：新鮮蔬菜 🥦", "第三關：健康澱粉 🍚"];
@@ -896,8 +953,8 @@
         function startConfetti() {
             stopConfetti();
             const cc = document.getElementById('confettiCanvas');
-            cc.width = window.innerWidth;
-            cc.height = window.innerHeight;
+            cc.width = document.getElementById('gameArea').clientWidth;
+            cc.height = document.getElementById('gameArea').clientHeight;
             const cx = cc.getContext('2d');
             confettiParticles = [];
             const colors = ['#f94144','#f3722c','#f8961e','#f9c74f','#90be6d','#43aa8b','#577590','#c77dff','#ff99c8'];
@@ -978,10 +1035,11 @@
 
         // Handle window resize gracefully
         window.addEventListener('resize', () => {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+            canvas.width = document.getElementById('gameArea').clientWidth;
+            canvas.height = document.getElementById('gameArea').clientHeight;
             const cc = document.getElementById('confettiCanvas');
-            if (cc) { cc.width = window.innerWidth; cc.height = window.innerHeight; }
+            const ga2 = document.getElementById('gameArea');
+            if (cc) { cc.width = ga2.clientWidth; cc.height = ga2.clientHeight; }
         });
 
         // 頁面隱藏或關閉時停止所有聲音
@@ -998,5 +1056,6 @@
         window.addEventListener('pagehide', stopAllAudio);
         window.addEventListener('beforeunload', stopAllAudio);
     </script>
+</div></div>
 </body>
 </html>
