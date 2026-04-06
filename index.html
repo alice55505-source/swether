@@ -14,21 +14,17 @@
             font-family: sans-serif;
         }
 
-        /* ── 全域版面：以最窄邊為基準，保持 9:16 直向比例置中 ── */
+        /* ── 全域版面：撐滿整個螢幕 ── */
         #gameWrapper {
             position: fixed;
             top: 0; left: 0;
             width: 100%; height: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background: #000;
+            overflow: hidden;
         }
         #gameArea {
-            position: relative;
-            /* 維持 9:16，寬不超過螢幕高度的 9/16，高不超過螢幕高度 */
-            width: min(100vw, calc(100dvh * 9 / 16));
-            height: min(100dvh, calc(100vw * 16 / 9));
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
             overflow: hidden;
             background: #fdfae7;
         }
@@ -229,6 +225,19 @@
     </div>
 
     <script>
+        // ── canvas 尺寸同步（撐滿 gameArea）──────────────────────────
+        function resizeGameArea() {
+            const area = document.getElementById('gameArea');
+            const w = area.clientWidth  || window.innerWidth;
+            const h = area.clientHeight || window.innerHeight;
+            const c = document.getElementById('gameCanvas');
+            if (c) { c.width = w; c.height = h; }
+            const cc = document.getElementById('confettiCanvas');
+            if (cc) { cc.width = w; cc.height = h; }
+        }
+        window.addEventListener('resize', () => { setTimeout(resizeGameArea, 50); });
+        window.addEventListener('orientationchange', () => { setTimeout(resizeGameArea, 200); });
+
         // ── 音效授權系統 ──────────────────────────────────────────────
         let soundPermissionGranted = false;
 
@@ -336,7 +345,8 @@
             const files = {
                 click: 'click.mp3', catch: 'catch.mp3', wrong: 'wrong.mp3',
                 bad: 'bad.mp3', good: 'good.mp3',
-                perfect: 'perfect.mp3', normal: 'normal.mp3', ended: 'ended.mp3'
+                perfect: 'perfect.mp3', normal: 'normal.mp3', ended: 'ended.mp3',
+                cheer_go: 'cheer_go.mp3'
             };
             await Promise.all(Object.entries(files).map(async ([key, file]) => {
                 try {
@@ -349,6 +359,7 @@
 
         function playSfx(name, vol = 1) {
             if (!actx || !sfxBuffers[name]) return;
+            if (actx.state === 'suspended') { actx.resume().catch(() => {}); }
             try {
                 const src = actx.createBufferSource();
                 src.buffer = sfxBuffers[name];
@@ -356,7 +367,7 @@
                 gain.gain.value = vol;
                 src.connect(gain).connect(actx.destination);
                 src.start(0);
-            } catch(e) { console.warn('sfx play err', e); }
+            } catch(e) {}
         }
 
         // 向下相容的 catch 音效呼叫
@@ -369,17 +380,27 @@
 
         function startBgm() {
             if (bgmPlaying) return;
-            // bgmAudio 已在手勢授權時建立，直接播
             if (!bgmAudio) {
                 bgmAudio = new Audio(`${BASE}sounds/bgm.mp3`);
                 bgmAudio.loop = true;
                 bgmAudio.volume = 0.4;
             }
+            // 確保 AudioContext 不是 suspended（iPad 切換 app 後常發生）
+            if (actx && actx.state === 'suspended') {
+                actx.resume().catch(() => {});
+            }
             bgmAudio.volume = 0.4;
             bgmAudio.currentTime = 0;
             bgmAudio.play().then(() => {
                 bgmPlaying = true;
-            }).catch(() => {});
+            }).catch(() => {
+                // 播放失敗時稍後重試一次（iPad 網路慢時 src 尚未載入）
+                setTimeout(() => {
+                    if (!bgmPlaying) {
+                        bgmAudio.play().then(() => { bgmPlaying = true; }).catch(() => {});
+                    }
+                }, 1500);
+            });
         }
 
         function stopBgm() {
@@ -414,6 +435,7 @@
         const SCORE_PER_HIT = 50;
         const SCORE_PENALTY = 10;
         let correctSpawnCount = 0;  // 本關已出現的正確食物數（保留供難度比例使用）
+        let lastCheerGoThreshold = 0;  // 上次播加油聲時的門檻（每關重置）
 
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
@@ -514,6 +536,7 @@
             currentLevel = level;
             scores[currentLevel] = 0;
             correctSpawnCount = 0;  // 重置本關正確食物計數
+            lastCheerGoThreshold = 0;  // 重置加油門檻
 
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
             const gc = document.getElementById('gameContainer');
@@ -875,6 +898,12 @@
                         spawnFloatingText(it.x, it.y - 70, `+${SCORE_PER_HIT} ✨`, "#27ae60");
                         setGameBg(1);
                         playSfx('catch');
+                        // 每達到 200 分播一次加油聲
+                        const nextThreshold = (lastCheerGoThreshold + 1) * 200;
+                        if (scores[currentLevel] >= nextThreshold) {
+                            lastCheerGoThreshold++;
+                            setTimeout(() => playSfx('cheer_go'), 300);
+                        }
                     }
                 }
             }
@@ -897,30 +926,44 @@
             }
         }
 
+        // 將視窗座標轉換成 canvas 內部座標（考慮偏移與縮放比例）
+        function toCanvasCoords(clientX, clientY) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width  / rect.width;
+            const scaleY = canvas.height / rect.height;
+            return {
+                x: (clientX - rect.left) * scaleX,
+                y: (clientY - rect.top)  * scaleY
+            };
+        }
+
         // Touch events
         canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
             const t = e.touches[0];
-            onPointerStart(t.clientX, t.clientY);
+            const p = toCanvasCoords(t.clientX, t.clientY);
+            onPointerStart(p.x, p.y);
         }, { passive: false });
 
         canvas.addEventListener('touchmove', (e) => {
             e.preventDefault();
             const t = e.touches[0];
-            onPointerMove(t.clientX, t.clientY);
+            const p = toCanvasCoords(t.clientX, t.clientY);
+            onPointerMove(p.x, p.y);
         }, { passive: false });
 
         canvas.addEventListener('touchend', (e) => {
             e.preventDefault();
             const t = e.changedTouches[0];
-            onPointerEnd(t.clientX, t.clientY);
+            const p = toCanvasCoords(t.clientX, t.clientY);
+            onPointerEnd(p.x, p.y);
         }, { passive: false });
 
-        // FIX 4: Mouse events for desktop support
-        canvas.addEventListener('mousedown', (e) => onPointerStart(e.clientX, e.clientY));
-        canvas.addEventListener('mousemove', (e) => onPointerMove(e.clientX, e.clientY));
-        canvas.addEventListener('mouseup', (e) => onPointerEnd(e.clientX, e.clientY));
-        canvas.addEventListener('mouseleave', (e) => onPointerEnd(e.clientX, e.clientY));
+        // Mouse events for desktop support
+        canvas.addEventListener('mousedown', (e) => { const p = toCanvasCoords(e.clientX, e.clientY); onPointerStart(p.x, p.y); });
+        canvas.addEventListener('mousemove', (e) => { const p = toCanvasCoords(e.clientX, e.clientY); onPointerMove(p.x, p.y); });
+        canvas.addEventListener('mouseup',   (e) => { const p = toCanvasCoords(e.clientX, e.clientY); onPointerEnd(p.x, p.y); });
+        canvas.addEventListener('mouseleave',(e) => { const p = toCanvasCoords(e.clientX, e.clientY); onPointerEnd(p.x, p.y); });
 
         // Red/flash overlay for wrong food
         let flashAlpha = 0;
@@ -1034,13 +1077,7 @@
         }
 
         // Handle window resize gracefully
-        window.addEventListener('resize', () => {
-            canvas.width = document.getElementById('gameArea').clientWidth;
-            canvas.height = document.getElementById('gameArea').clientHeight;
-            const cc = document.getElementById('confettiCanvas');
-            const ga2 = document.getElementById('gameArea');
-            if (cc) { cc.width = ga2.clientWidth; cc.height = ga2.clientHeight; }
-        });
+        // resize 由上方的 resizeGameArea listener 統一處理
 
         // 頁面隱藏或關閉時停止所有聲音
         function stopAllAudio() {
@@ -1051,7 +1088,17 @@
         }
 
         document.addEventListener('visibilitychange', () => {
-            if (document.hidden) stopAllAudio();
+            if (document.hidden) {
+                stopAllAudio();
+            } else {
+                // 回到前景：恢復 AudioContext 並重播 BGM
+                if (actx && actx.state === 'suspended') {
+                    actx.resume().catch(() => {});
+                }
+                if (!document.hidden && soundPermissionGranted && !bgmPlaying) {
+                    startBgm();
+                }
+            }
         });
         window.addEventListener('pagehide', stopAllAudio);
         window.addEventListener('beforeunload', stopAllAudio);
