@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Swether - 營養切切樂</title>
     <style>
         * { box-sizing: border-box; }
@@ -14,19 +14,23 @@
             font-family: sans-serif;
         }
 
-        /* ── 全域版面：撐滿整個螢幕 ── */
+        /* ── 全域版面：9:16 置中，黑邊補齊 ── */
         #gameWrapper {
             position: fixed;
             top: 0; left: 0;
             width: 100%; height: 100%;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
             overflow: hidden;
         }
         #gameArea {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
+            position: relative;
+            /* 尺寸由 JS 動態設定為 9:16 */
             overflow: hidden;
             background: #fdfae7;
+            flex-shrink: 0;
         }
 
         .screen {
@@ -225,16 +229,34 @@
     </div>
 
     <script>
-        // ── canvas 尺寸同步（撐滿 gameArea）──────────────────────────
+        // ── 9:16 letterbox 計算 ──────────────────────────────────
         function resizeGameArea() {
+            const sw = window.innerWidth;
+            const sh = window.innerHeight;
+            const RATIO = 9 / 16;
+
+            let w, h;
+            if (sw / sh < RATIO) {
+                // 螢幕比 9:16 還窄：以寬為基準
+                w = sw;
+                h = Math.round(sw / RATIO);
+            } else {
+                // 螢幕比 9:16 寬（平板、橫向）：以高為基準
+                h = sh;
+                w = Math.round(sh * RATIO);
+            }
+
             const area = document.getElementById('gameArea');
-            const w = area.clientWidth  || window.innerWidth;
-            const h = area.clientHeight || window.innerHeight;
+            area.style.width  = w + 'px';
+            area.style.height = h + 'px';
+
+            // 同步 canvas 尺寸
             const c = document.getElementById('gameCanvas');
             if (c) { c.width = w; c.height = h; }
             const cc = document.getElementById('confettiCanvas');
             if (cc) { cc.width = w; cc.height = h; }
         }
+        resizeGameArea();
         window.addEventListener('resize', () => { setTimeout(resizeGameArea, 50); });
         window.addEventListener('orientationchange', () => { setTimeout(resizeGameArea, 200); });
 
@@ -461,8 +483,9 @@
 
         function initGame() {
             // 初始化 canvas 尺寸（平板 / 大螢幕）
-            canvas.width = document.getElementById('gameArea').clientWidth;
-            canvas.height = document.getElementById('gameArea').clientHeight;
+            const _ga = document.getElementById('gameArea');
+            canvas.width  = _ga.clientWidth;
+            canvas.height = _ga.clientHeight;
             // load 時只設背景，不播音樂（手機需等用戶手勢）
             const home = document.getElementById('home');
             home.style.backgroundImage = `url('${BG_MAP.home}')`;
@@ -546,8 +569,8 @@
             // FIX 6: only resize canvas when dimensions actually changed to avoid wiping ctx state mid-game
             const ga = document.getElementById('gameArea');
             if (canvas.width !== ga.clientWidth || canvas.height !== ga.clientHeight) {
-                canvas.width = document.getElementById('gameArea').clientWidth;
-                canvas.height = document.getElementById('gameArea').clientHeight;
+                canvas.width  = ga.clientWidth;
+                canvas.height = ga.clientHeight;
             }
 
             const tipTitles = ["", "第一關：優質蛋白質 🥩", "第二關：新鮮蔬菜 🥦", "第三關：健康澱粉 🍚"];
