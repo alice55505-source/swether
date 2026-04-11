@@ -14,38 +14,31 @@
             font-family: sans-serif;
         }
 
-        /* ── 全域版面：9:16 置中，黑邊補齊 ── */
+        /* ── 全域版面：撐滿整個螢幕，不限比例 ── */
         #gameWrapper {
             position: fixed;
             top: 0; left: 0;
             width: 100%; height: 100%;
-            background: #000;
-            display: flex;
-            justify-content: center;
-            align-items: center;
             overflow: hidden;
         }
         #gameArea {
-            position: relative;
-            /* 尺寸由 JS 動態設定為 9:16 */
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
             overflow: hidden;
             background: #fdfae7;
-            flex-shrink: 0;
         }
 
         .screen {
             display: none;
             width: 100%; height: 100%;
             position: absolute; top: 0; left: 0;
-            background-size: cover;
+            background-size: 100% 100%;
             background-position: center;
-            flex-direction: column;
-            align-items: center;
-            justify-content: flex-end;
             cursor: pointer;
             -webkit-tap-highlight-color: transparent;
         }
-        .active { display: flex; }
+        .active { display: block; }
 
         #gameCanvas {
             display: block;
@@ -56,9 +49,11 @@
         }
 
         .btn {
-            width: 85%;
-            height: 15%;
-            margin-bottom: 12%;
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 75%;
+            height: 9%;
             cursor: pointer;
             background: transparent;
             border: none; outline: none;
@@ -69,6 +64,13 @@
             background-position: center;
         }
         .btn.locked { cursor: not-allowed; }
+
+        /* 各畫面按鈕精確位置 */
+        #home      .btn { top: 85%; height: 9%; }
+        #intro     .btn { top: 87%; height: 8%; }
+        #k1Screen  .btn { top: 82%; height: 10%; }
+        #betweenLevel .btn { top: 84%; height: 10%; }
+        #result    .btn { top: 86%; height: 9%; }
         #game-tips { display: none !important; }
         #loading { display: flex; justify-content: center; align-items: center; background: #fdfae7; z-index: 100; font-size: 1.5rem; font-weight: bold; cursor: pointer; }
 
@@ -229,30 +231,12 @@
     </div>
 
     <script>
-        // ── 9:16 letterbox 計算 ──────────────────────────────────
+        // ── canvas 尺寸同步（撐滿螢幕）──────────────────────────
         function resizeGameArea() {
-            const sw = window.innerWidth;
-            const sh = window.innerHeight;
-            const RATIO = 9 / 16;
-
-            let w, h;
-            if (sw / sh < RATIO) {
-                // 螢幕比 9:16 還窄：以寬為基準
-                w = sw;
-                h = Math.round(sw / RATIO);
-            } else {
-                // 螢幕比 9:16 寬（平板、橫向）：以高為基準
-                h = sh;
-                w = Math.round(sh * RATIO);
-            }
-
-            const area = document.getElementById('gameArea');
-            area.style.width  = w + 'px';
-            area.style.height = h + 'px';
-
-            // 同步 canvas 尺寸
+            const w = window.innerWidth;
+            const h = window.innerHeight;
             const c = document.getElementById('gameCanvas');
-            if (c) { c.width = w; c.height = h; }
+            if (c && (c.width !== w || c.height !== h)) { c.width = w; c.height = h; }
             const cc = document.getElementById('confettiCanvas');
             if (cc) { cc.width = w; cc.height = h; }
         }
@@ -483,9 +467,8 @@
 
         function initGame() {
             // 初始化 canvas 尺寸（平板 / 大螢幕）
-            const _ga = document.getElementById('gameArea');
-            canvas.width  = _ga.clientWidth;
-            canvas.height = _ga.clientHeight;
+            canvas.width  = window.innerWidth;
+            canvas.height = window.innerHeight;
             // load 時只設背景，不播音樂（手機需等用戶手勢）
             const home = document.getElementById('home');
             home.style.backgroundImage = `url('${BG_MAP.home}')`;
@@ -567,10 +550,9 @@
             gc.classList.add('active');
 
             // FIX 6: only resize canvas when dimensions actually changed to avoid wiping ctx state mid-game
-            const ga = document.getElementById('gameArea');
-            if (canvas.width !== ga.clientWidth || canvas.height !== ga.clientHeight) {
-                canvas.width  = ga.clientWidth;
-                canvas.height = ga.clientHeight;
+            if (canvas.width !== window.innerWidth || canvas.height !== window.innerHeight) {
+                canvas.width  = window.innerWidth;
+                canvas.height = window.innerHeight;
             }
 
             const tipTitles = ["", "第一關：優質蛋白質 🥩", "第二關：新鮮蔬菜 🥦", "第三關：健康澱粉 🍚"];
@@ -601,7 +583,8 @@
 
             levelEndTimerId = setTimeout(() => {
                 stopCurrentLevel();
-                setTimeout(() => showBetweenLevel(), 600);
+                // 3 秒慶祝：彩帶 + cheer 音效，之後再進過關畫面
+                levelCelebration(() => showBetweenLevel());
             }, 30000);
         }
 
@@ -926,6 +909,7 @@
                         if (scores[currentLevel] >= nextThreshold) {
                             lastCheerGoThreshold++;
                             setTimeout(() => playSfx('cheer_go'), 300);
+                            setTimeout(() => burstRibbon(), 100);
                         }
                     }
                 }
@@ -1070,6 +1054,158 @@
             const cc = document.getElementById('confettiCanvas');
             if (cc) cc.getContext('2d').clearRect(0, 0, cc.width, cc.height);
             confettiParticles = [];
+        }
+
+        // ── 關卡結束慶祝（3 秒彩帶 + cheer 音效）────────────────
+        function levelCelebration(callback) {
+            const gc = document.getElementById('gameContainer');
+            if (!gc) { setTimeout(callback, 3000); return; }
+
+            // 播 cheer 音效
+            if (cheerAudio) {
+                try {
+                    cheerAudio.currentTime = 0;
+                    cheerAudio.volume = 0.7;
+                    cheerAudio.play().catch(() => {});
+                } catch(e) {}
+            }
+
+            // 建立彩帶 canvas
+            const rc = document.createElement('canvas');
+            rc.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:50;';
+            rc.width  = canvas.width;
+            rc.height = canvas.height;
+            gc.appendChild(rc);
+            const rx = rc.getContext('2d');
+
+            const colors = ['#f94144','#f3722c','#f8961e','#f9c74f','#90be6d','#43aa8b','#577590','#c77dff','#ff99c8','#ffffff'];
+            const ribbons = [];
+
+            function spawnBatch() {
+                for (let i = 0; i < 20; i++) {
+                    ribbons.push({
+                        x: Math.random() * rc.width,
+                        y: -10 - Math.random() * 60,
+                        w: 8 + Math.random() * 12,
+                        h: 4 + Math.random() * 6,
+                        color: colors[Math.floor(Math.random() * colors.length)],
+                        vx: (Math.random() - 0.5) * 4,
+                        vy: 3 + Math.random() * 4,
+                        rot: Math.random() * Math.PI * 2,
+                        rotV: (Math.random() - 0.5) * 0.25,
+                        alpha: 1
+                    });
+                }
+            }
+
+            spawnBatch();
+            const spawnId = setInterval(spawnBatch, 400);
+
+            const DURATION = 3000;
+            const startTime = performance.now();
+
+            function loop(now) {
+                const elapsed = now - startTime;
+                rx.clearRect(0, 0, rc.width, rc.height);
+
+                for (let i = ribbons.length - 1; i >= 0; i--) {
+                    const p = ribbons[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.rot += p.rotV;
+                    if (elapsed > DURATION - 600) {
+                        p.alpha = Math.max(0, (DURATION - elapsed) / 600);
+                    }
+                    if (p.y > rc.height + 20) { ribbons.splice(i, 1); continue; }
+                    rx.save();
+                    rx.globalAlpha = p.alpha;
+                    rx.translate(p.x, p.y);
+                    rx.rotate(p.rot);
+                    rx.fillStyle = p.color;
+                    rx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+                    rx.restore();
+                }
+
+                if (elapsed < DURATION) {
+                    requestAnimationFrame(loop);
+                } else {
+                    clearInterval(spawnId);
+                    rx.clearRect(0, 0, rc.width, rc.height);
+                    if (rc.parentNode) rc.parentNode.removeChild(rc);
+                    // 停止 cheer 音效
+                    if (cheerAudio) { try { cheerAudio.pause(); cheerAudio.currentTime = 0; } catch(e) {} }
+                    callback();
+                }
+            }
+            requestAnimationFrame(loop);
+        }
+
+        // ── 加油緞帶（短暫版，2 秒後自動停止）──────────────────
+        function burstRibbon() {
+            const gc = document.getElementById('gameContainer');
+            if (!gc || !gc.classList.contains('active')) return;
+
+            // 建立暫時 canvas 疊在遊戲畫面上
+            const rc = document.createElement('canvas');
+            rc.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:50;';
+            rc.width  = canvas.width;
+            rc.height = canvas.height;
+            gc.appendChild(rc);
+            const rx = rc.getContext('2d');
+
+            const colors = ['#f94144','#f3722c','#f8961e','#f9c74f','#90be6d','#43aa8b','#c77dff','#ff99c8','#ffffff'];
+            const ribbons = [];
+
+            // 一次噴出 60 條緞帶
+            for (let i = 0; i < 60; i++) {
+                ribbons.push({
+                    x: Math.random() * rc.width,
+                    y: -10 - Math.random() * 80,
+                    w: 6 + Math.random() * 10,
+                    h: 3 + Math.random() * 5,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    vx: (Math.random() - 0.5) * 4,
+                    vy: 3 + Math.random() * 4,
+                    rot: Math.random() * Math.PI * 2,
+                    rotV: (Math.random() - 0.5) * 0.25,
+                    alpha: 1
+                });
+            }
+
+            const startTime = performance.now();
+            const DURATION = 2000; // 2 秒
+
+            function loop(now) {
+                const elapsed = now - startTime;
+                rx.clearRect(0, 0, rc.width, rc.height);
+
+                for (let i = ribbons.length - 1; i >= 0; i--) {
+                    const p = ribbons[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.rot += p.rotV;
+                    // 最後 0.5 秒開始淡出
+                    if (elapsed > DURATION - 500) {
+                        p.alpha = Math.max(0, (DURATION - elapsed) / 500);
+                    }
+                    if (p.y > rc.height + 20) { ribbons.splice(i, 1); continue; }
+                    rx.save();
+                    rx.globalAlpha = p.alpha;
+                    rx.translate(p.x, p.y);
+                    rx.rotate(p.rot);
+                    rx.fillStyle = p.color;
+                    rx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+                    rx.restore();
+                }
+
+                if (elapsed < DURATION && ribbons.length > 0) {
+                    requestAnimationFrame(loop);
+                } else {
+                    rx.clearRect(0, 0, rc.width, rc.height);
+                    if (rc.parentNode) rc.parentNode.removeChild(rc);
+                }
+            }
+            requestAnimationFrame(loop);
         }
 
         function finishGame() {
