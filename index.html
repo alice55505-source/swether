@@ -278,22 +278,25 @@
                 silentAudio.play().catch(() => {});
             } catch(e) {}
 
-            // 在手勢當下預先建立並解鎖 bgmAudio 和 cheerAudio
+            // 在手勢當下預先建立並解鎖 bgmAudio（volume=0 靜音播放解鎖 iOS）
             try {
                 if (!bgmAudio) {
                     bgmAudio = new Audio(`${BASE}sounds/bgm.mp3`);
                     bgmAudio.loop = true;
                     bgmAudio.volume = 0;
                 }
+                // 解鎖完成後才正式播放，避免 pause() 與 startBgm() 的 play() 競爭
                 bgmAudio.play().then(() => {
                     bgmAudio.pause();
                     bgmAudio.currentTime = 0;
                     bgmAudio.volume = 0.4;
-                }).catch(() => {});
-            } catch(e) {}
+                    startBgm();   // 解鎖成功後立即播
+                }).catch(() => {
+                    startBgm();   // 解鎖失敗也嘗試播（有重試機制）
+                });
+            } catch(e) { startBgm(); }
 
             // 預先建立 cheerAudio 並 load，不播放（避免開頭出現歡呼聲）
-            // iOS 只要在手勢當下 new Audio() 並 load() 就能解鎖後續播放
             try {
                 if (!cheerAudio) {
                     cheerAudio = new Audio(`${BASE}sounds/cheer.mp3`);
@@ -308,9 +311,8 @@
             overlay.style.opacity = '0';
             setTimeout(() => { overlay.style.display = 'none'; }, 400);
 
-            // 立刻播 BGM（不等 sfx 載完），sfx 在背景非同步載入
+            // SFX 在背景非同步載入（BGM 不等它）
             audioInitialized = true;
-            startBgm();
             initAudioPool().catch(() => {});
         }
 
