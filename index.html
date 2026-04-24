@@ -9,6 +9,7 @@
         body, html {
             margin: 0; padding: 0;
             width: 100%; height: 100%;
+            height: -webkit-fill-available;
             overflow: hidden;
             background: #fdfae7;
             font-family: sans-serif;
@@ -17,8 +18,10 @@
         /* ── 全域版面：撐滿整個螢幕，不限比例 ── */
         #gameWrapper {
             position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
+            top: 0; left: 0; right: 0; bottom: 0;
+            width: 100%;
+            height: 100vh;
+            height: var(--real-vh, 100vh);
             overflow: hidden;
         }
         #gameArea {
@@ -33,8 +36,8 @@
             display: none;
             width: 100%; height: 100%;
             position: absolute; top: 0; left: 0;
-            background-size: 100% 100%;
-            background-position: center;
+            background-size: cover;
+            background-position: center center;
             cursor: pointer;
             -webkit-tap-highlight-color: transparent;
         }
@@ -231,6 +234,14 @@
     </div>
 
     <script>
+        // ── iOS 真實視窗高度（修正 Safari 地址列佔位）──────────
+        function setRealVh() {
+            document.documentElement.style.setProperty('--real-vh', window.innerHeight + 'px');
+        }
+        setRealVh();
+        window.addEventListener('resize', setRealVh);
+        window.addEventListener('orientationchange', () => { setTimeout(setRealVh, 200); });
+
         // ── canvas 尺寸同步（撐滿螢幕）──────────────────────────
         function resizeGameArea() {
             const w = window.innerWidth;
@@ -297,9 +308,10 @@
             overlay.style.opacity = '0';
             setTimeout(() => { overlay.style.display = 'none'; }, 400);
 
-            // 音效背景載入，載完後正式播 BGM
+            // 立刻播 BGM（不等 sfx 載完），sfx 在背景非同步載入
             audioInitialized = true;
-            initAudioPool().then(() => startBgm()).catch(() => {});
+            startBgm();
+            initAudioPool().catch(() => {});
         }
 
         function denySoundPermission() {
@@ -384,6 +396,7 @@
         let bgmPlaying = false;
         let cheerAudio = null;
 
+        let bgmRetryCount = 0;
         function startBgm() {
             if (bgmPlaying) return;
             if (!bgmAudio) {
@@ -391,23 +404,27 @@
                 bgmAudio.loop = true;
                 bgmAudio.volume = 0.4;
             }
-            // 確保 AudioContext 不是 suspended（iPad 切換 app 後常發生）
             if (actx && actx.state === 'suspended') {
                 actx.resume().catch(() => {});
             }
             bgmAudio.volume = 0.4;
-            bgmAudio.currentTime = 0;
             bgmAudio.play().then(() => {
                 bgmPlaying = true;
+                bgmRetryCount = 0;
             }).catch(() => {
-                // 播放失敗時稍後重試一次（iPad 網路慢時 src 尚未載入）
-                setTimeout(() => {
-                    if (!bgmPlaying) {
-                        bgmAudio.play().then(() => { bgmPlaying = true; }).catch(() => {});
-                    }
-                }, 1500);
+                // 最多重試 5 次，間隔逐漸拉長
+                if (bgmRetryCount < 5) {
+                    bgmRetryCount++;
+                    setTimeout(() => { if (!bgmPlaying) startBgm(); }, bgmRetryCount * 1000);
+                }
             });
         }
+
+        // iOS 任何觸碰都嘗試恢復 BGM（解決切 app 回來沒聲音）
+        document.addEventListener('touchstart', () => {
+            if (soundPermissionGranted && !bgmPlaying) startBgm();
+            if (actx && actx.state === 'suspended') actx.resume().catch(() => {});
+        }, { passive: true });
 
         function stopBgm() {
             if (bgmAudio) {
@@ -592,7 +609,7 @@
         const FOOD_NAMES = {
             "🐟":"鮭魚","🦐":"蝦子","🐠":"旗魚",
             "🍗":"雞肉","🥚":"雞蛋","🥩":"瘦牛肉","🥛":"鮮乳","🍶":"優格",
-            "🧀":"起司","🦪":"牡蠣","🥜":"花生",
+            "🧀":"起司","🦪":"牡蠣",
             "🥦":"花椰菜","🥕":"紅蘿蔔","🥬":"青菜","🍅":"番茄",
             "🧅":"洋蔥","🥒":"小黃瓜","🌿":"菠菜","🍄":"香菇",
             "🍠":"地瓜","🥔":"馬鈴薯","🎃":"南瓜","🌽":"玉米","🥣":"燕麥","🍚":"糙米",
@@ -604,7 +621,7 @@
         // 每關正確食物
         const LEVEL_CORRECT = [
             null,
-            ["🐟","🦐","🐠","🍗","🥚","🥩","🥛","🍶","🧀","🦪","🥜"],
+            ["🐟","🦐","🐠","🍗","🥚","🥩","🥛","🍶","🧀","🦪"],
             ["🥦","🥕","🥬","🍅","🧅","🥒","🌿","🍄"],
             ["🍠","🥔","🎃","🌽","🥣","🍚","🫓","🍞"]
         ];
