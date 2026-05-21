@@ -1377,21 +1377,15 @@
             let deferredPrompt = null;
             let promptShown = false;
 
-            // 攔截 Android 安裝事件
+            // 攔截 Android 安裝事件，收到就立即顯示
             window.addEventListener('beforeinstallprompt', e => {
                 e.preventDefault();
                 deferredPrompt = e;
+                tryShow();
             });
 
-            // 等音效授權彈窗關閉後再顯示（避免疊在一起）
-            const soundOverlay = document.getElementById('soundPermissionOverlay');
-            const obs = new MutationObserver(() => {
-                if (soundOverlay.style.display === 'none') {
-                    obs.disconnect();
-                    setTimeout(tryShow, 1500);
-                }
-            });
-            if (soundOverlay) obs.observe(soundOverlay, { attributes: true, attributeFilter: ['style'] });
+            // iOS：頁面載入 2 秒後直接顯示
+            if (isIOS) setTimeout(tryShow, 2000);
 
             function tryShow() {
                 if (promptShown) return;
