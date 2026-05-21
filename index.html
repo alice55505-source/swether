@@ -200,6 +200,60 @@
             color: #fff;
             box-shadow: 0 6px 18px rgba(231,76,60,0.4);
         }
+
+        /* ── PWA 安裝提示 ── */
+        #pwaInstall {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            z-index: 10000;
+            pointer-events: none;
+            transform: translateY(110%);
+            transition: transform 0.4s cubic-bezier(0.34, 1.2, 0.64, 1);
+        }
+        #pwaInstall.show { transform: translateY(0); pointer-events: auto; }
+        #pwaCard {
+            background: #fff;
+            margin: 0 10px;
+            border-radius: 22px 22px 0 0;
+            padding: 20px 20px calc(env(safe-area-inset-bottom, 12px) + 12px);
+            box-shadow: 0 -6px 30px rgba(0,0,0,0.18);
+        }
+        #pwaCardTop {
+            display: flex; align-items: center; gap: 14px; margin-bottom: 16px;
+        }
+        #pwaCardIcon {
+            width: 58px; height: 58px; border-radius: 14px; flex-shrink: 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        #pwaCardInfo strong {
+            display: block; font-size: 1.15rem; font-weight: 900; color: #1a1a1a;
+        }
+        #pwaCardInfo span { font-size: 0.88rem; color: #666; line-height: 1.4; }
+        #pwaInstallBtn {
+            display: block; width: 100%; padding: 16px; border: none;
+            border-radius: 50px; font-size: 1.05rem; font-weight: 900;
+            background: linear-gradient(135deg, #27ae60, #2ecc71);
+            color: #fff; cursor: pointer; letter-spacing: 1px;
+            box-shadow: 0 4px 14px rgba(39,174,96,0.4);
+            -webkit-tap-highlight-color: transparent;
+        }
+        #pwaInstallBtn:active { transform: scale(0.97); }
+        #pwaIOSHint {
+            display: none; flex-direction: column; align-items: center;
+            gap: 6px; padding: 4px 0 8px;
+        }
+        #pwaIOSHint p { margin: 0; font-size: 1rem; font-weight: 700; color: #222; text-align: center; line-height: 1.6; }
+        .pwa-share-badge {
+            display: inline-block; background: #007AFF; color: #fff;
+            border-radius: 7px; padding: 1px 9px; font-size: 0.88rem;
+        }
+        .pwa-arrow { font-size: 1.6rem; color: #007AFF; animation: pwaB 1s ease-in-out infinite; }
+        @keyframes pwaB { 0%,100%{transform:translateY(0)} 50%{transform:translateY(7px)} }
+        #pwaDismiss {
+            display: block; width: 100%; padding: 11px; border: none;
+            background: transparent; color: #aaa; font-size: 0.88rem; cursor: pointer;
+            margin-top: 8px; -webkit-tap-highlight-color: transparent;
+        }
     </style>
 </head>
 <body>
@@ -1289,6 +1343,87 @@
         });
         window.addEventListener('pagehide', stopAllAudio);
         window.addEventListener('beforeunload', stopAllAudio);
+    </script>
+
+    <!-- PWA 安裝提示卡片 -->
+    <div id="pwaInstall">
+        <div id="pwaCard">
+            <div id="pwaCardTop">
+                <img id="pwaCardIcon" src="icons/icon-192.png" alt="切切樂">
+                <div id="pwaCardInfo">
+                    <strong>安裝「切切樂」到主畫面</strong>
+                    <span>加入後可離線暢玩，不佔瀏覽器空間 🎮</span>
+                </div>
+            </div>
+            <button id="pwaInstallBtn">📲 立即安裝</button>
+            <div id="pwaIOSHint">
+                <p>點下方 <span class="pwa-share-badge">⬆ 分享</span> 按鈕<br>再選「加入主畫面」</p>
+                <div class="pwa-arrow">▼</div>
+            </div>
+            <button id="pwaDismiss">稍後再說</button>
+        </div>
+    </div>
+
+    <script>
+        // ── PWA 安裝提示邏輯 ──
+        (function () {
+            // 已安裝成 App 就不顯示
+            if (window.matchMedia('(display-mode: standalone)').matches ||
+                navigator.standalone === true) return;
+            // 用戶曾手動關閉就不再打擾
+            if (localStorage.getItem('pwa-dismissed')) return;
+
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+            let deferredPrompt = null;
+            let promptShown = false;
+
+            // 攔截 Android 安裝事件
+            window.addEventListener('beforeinstallprompt', e => {
+                e.preventDefault();
+                deferredPrompt = e;
+            });
+
+            // 等音效授權彈窗關閉後再顯示（避免疊在一起）
+            const soundOverlay = document.getElementById('soundPermissionOverlay');
+            const obs = new MutationObserver(() => {
+                if (soundOverlay.style.display === 'none') {
+                    obs.disconnect();
+                    setTimeout(tryShow, 1500);
+                }
+            });
+            if (soundOverlay) obs.observe(soundOverlay, { attributes: true, attributeFilter: ['style'] });
+
+            function tryShow() {
+                if (promptShown) return;
+                if (!isIOS && !deferredPrompt) return; // Android 但瀏覽器不支援就不顯示
+                promptShown = true;
+
+                if (isIOS) {
+                    document.getElementById('pwaInstallBtn').style.display = 'none';
+                    document.getElementById('pwaIOSHint').style.display = 'flex';
+                }
+                requestAnimationFrame(() =>
+                    document.getElementById('pwaInstall').classList.add('show')
+                );
+            }
+
+            document.getElementById('pwaInstallBtn').addEventListener('click', async () => {
+                if (!deferredPrompt) return;
+                deferredPrompt.prompt();
+                await deferredPrompt.userChoice;
+                deferredPrompt = null;
+                hide();
+            });
+
+            document.getElementById('pwaDismiss').addEventListener('click', () => {
+                localStorage.setItem('pwa-dismissed', '1');
+                hide();
+            });
+
+            function hide() {
+                document.getElementById('pwaInstall').classList.remove('show');
+            }
+        })();
     </script>
 
     <script>
