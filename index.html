@@ -201,6 +201,26 @@
             box-shadow: 0 6px 18px rgba(231,76,60,0.4);
         }
 
+        /* ── 更新提示 Toast ── */
+        #pwaUpdateToast {
+            position: fixed;
+            top: calc(env(safe-area-inset-top, 0px) + 12px);
+            left: 50%; transform: translateX(-50%) translateY(-120%);
+            z-index: 10001;
+            background: #1b5e20;
+            color: #fff;
+            padding: 12px 20px;
+            border-radius: 50px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            white-space: nowrap;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+            cursor: pointer;
+            transition: transform 0.35s cubic-bezier(0.34, 1.2, 0.64, 1);
+            -webkit-tap-highlight-color: transparent;
+        }
+        #pwaUpdateToast.show { transform: translateX(-50%) translateY(0); }
+
         /* ── PWA 安裝提示 ── */
         #pwaInstall {
             position: fixed;
@@ -412,7 +432,7 @@
 
         const FISH_KEY = "2280183970ad46e9ae253e08db5e28c5"; 
         const VOICE_ID = "b20abfd2bc2741e0b61f02c54aa93dc3";
-        const BASE = `https://raw.githubusercontent.com/alice55505-source/swether/main/`;
+        const BASE = './';
         
         const BG_MAP = {
             home: `${BASE}images/cover.jpg`, intro: `${BASE}images/intro.jpg`,
@@ -1350,6 +1370,9 @@
         window.addEventListener('beforeunload', stopAllAudio);
     </script>
 
+    <!-- 更新提示 Toast -->
+    <div id="pwaUpdateToast" onclick="location.reload()">🔄 發現新版本，點此更新！</div>
+
     <!-- PWA 安裝提示卡片 -->
     <div id="pwaInstall">
         <div id="pwaCard">
@@ -1436,8 +1459,17 @@
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .catch(() => {});
+                navigator.serviceWorker.register('./sw.js').then(reg => {
+                    // 偵測到新版 SW 安裝完成時，顯示更新提示
+                    reg.addEventListener('updatefound', () => {
+                        const newSW = reg.installing;
+                        newSW.addEventListener('statechange', () => {
+                            if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+                                document.getElementById('pwaUpdateToast').classList.add('show');
+                            }
+                        });
+                    });
+                }).catch(() => {});
             });
         }
     </script>
