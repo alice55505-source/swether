@@ -249,6 +249,11 @@
         }
         .pwa-arrow { font-size: 1.6rem; color: #007AFF; animation: pwaB 1s ease-in-out infinite; }
         @keyframes pwaB { 0%,100%{transform:translateY(0)} 50%{transform:translateY(7px)} }
+        #pwaAndroidHint {
+            display: none; flex-direction: column; align-items: center;
+            gap: 6px; padding: 4px 0 8px;
+        }
+        #pwaAndroidHint p { margin: 0; font-size: 1rem; font-weight: 700; color: #222; text-align: center; line-height: 1.6; }
         #pwaDismiss {
             display: block; width: 100%; padding: 11px; border: none;
             background: transparent; color: #aaa; font-size: 0.88rem; cursor: pointer;
@@ -1360,6 +1365,9 @@
                 <p>點下方 <span class="pwa-share-badge">⬆ 分享</span> 按鈕<br>再選「加入主畫面」</p>
                 <div class="pwa-arrow">▼</div>
             </div>
+            <div id="pwaAndroidHint">
+                <p>點右上角 <span class="pwa-share-badge">⋮ 選單</span><br>選「安裝應用程式」或「加入主畫面」</p>
+            </div>
             <button id="pwaDismiss">稍後再說</button>
         </div>
     </div>
@@ -1377,24 +1385,29 @@
             let deferredPrompt = null;
             let promptShown = false;
 
-            // 攔截 Android 安裝事件，收到就立即顯示
+            // 攔截 Android 自動安裝事件
             window.addEventListener('beforeinstallprompt', e => {
                 e.preventDefault();
                 deferredPrompt = e;
-                tryShow();
             });
 
-            // iOS：頁面載入 2 秒後直接顯示
-            if (isIOS) setTimeout(tryShow, 2000);
+            // 全平台：2 秒後都顯示，不等任何事件
+            setTimeout(tryShow, 2000);
 
             function tryShow() {
                 if (promptShown) return;
-                if (!isIOS && !deferredPrompt) return; // Android 但瀏覽器不支援就不顯示
                 promptShown = true;
 
-                if (isIOS) {
+                if (deferredPrompt) {
+                    // Android 有自動 prompt：顯示「立即安裝」按鈕
+                } else if (isIOS) {
+                    // iOS：顯示分享按鈕說明
                     document.getElementById('pwaInstallBtn').style.display = 'none';
                     document.getElementById('pwaIOSHint').style.display = 'flex';
+                } else {
+                    // Android 沒有自動 prompt：顯示手動操作說明
+                    document.getElementById('pwaInstallBtn').style.display = 'none';
+                    document.getElementById('pwaAndroidHint').style.display = 'flex';
                 }
                 requestAnimationFrame(() =>
                     document.getElementById('pwaInstall').classList.add('show')
