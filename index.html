@@ -1402,7 +1402,6 @@
             if (window.matchMedia('(display-mode: standalone)').matches ||
                 navigator.standalone === true) return;
             // 用戶曾手動關閉就不再打擾
-            if (localStorage.getItem('pwa-dismissed')) return;
 
             const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
             let deferredPrompt = null;
@@ -1446,7 +1445,6 @@
             });
 
             document.getElementById('pwaDismiss').addEventListener('click', () => {
-                localStorage.setItem('pwa-dismissed', '1');
                 hide();
             });
 
