@@ -717,10 +717,6 @@
             // 難度參數
             const isExpert = difficulty === 'expert';
 
-            // 畫面上同時出現的食物數量上限，避免過度擁擠
-            const maxItems = isExpert ? 6 : 5;
-            if (gameItems.filter(it => !it.sliced).length >= maxItems) return;
-
             const wrongChance = isExpert ? 0.55 : 0.40;
             const driftRange  = isExpert ? 1.2  : 0.8;
 
@@ -732,21 +728,22 @@
 
             const FOOD_SIZE = 150;
             const ITEM_H = FOOD_SIZE + 40;
-            const MIN_GAP = 155;
+            const MIN_GAP = 100;
             const margin = FOOD_SIZE / 2 + 10;
 
-            // 隨機取 x 座標，最多嘗試 6 次避開畫面上方已存在的食物
-            let x = null;
+            // 隨機取 x 座標，最多嘗試 6 次避開畫面上方已存在的食物；
+            // 手機畫面較窄時可能一直找不到完全不重疊的位置，
+            // 這種情況仍要照常出現，避免掉落中斷太久
+            let x = margin + Math.random() * (canvas.width - 2 * margin);
             for (let attempt = 0; attempt < 6; attempt++) {
                 const tryX = margin + Math.random() * (canvas.width - 2 * margin);
                 const blocked = gameItems.some(it =>
                     !it.sliced &&
-                    it.y < ITEM_H * 2 &&
+                    it.y < ITEM_H * 1.3 &&
                     Math.abs(it.x - tryX) < MIN_GAP
                 );
                 if (!blocked) { x = tryX; break; }
             }
-            if (x === null) return;
 
             const fallSpeed = isExpert ? 1.5 : 0.95;
 
