@@ -717,6 +717,11 @@
             // 難度參數
             const isExpert = difficulty === 'expert';
 
+            // 畫面同時食物數量上限，避免太密集；設得比較寬鬆，
+            // 玩家正常切的速度下不太會卡到，只在切太慢時才會暫停產生
+            const maxItems = isExpert ? 7 : 6;
+            if (gameItems.filter(it => !it.sliced).length >= maxItems) return;
+
             const wrongChance = isExpert ? 0.55 : 0.40;
             const driftRange  = isExpert ? 1.2  : 0.8;
 
