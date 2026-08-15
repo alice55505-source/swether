@@ -589,6 +589,7 @@
                 e.preventDefault();
                 if (homeFired) return;
                 homeFired = true;
+                document.getElementById('pwaInstall').classList.remove('show');
                 await ensureAudio();
                 playSfx('click');
                 showDifficultyOverlay();

@@ -1,5 +1,5 @@
-const SHELL_VER = 'swether-shell-v2';
-const ASSETS_VER = 'swether-assets-v2';
+const SHELL_VER = 'swether-shell-v3';
+const ASSETS_VER = 'swether-assets-v3';
 const ALL_CACHES = [SHELL_VER, ASSETS_VER];
 
 const SHELL_FILES = [
@@ -40,18 +40,6 @@ const GAME_ASSETS = [
   './sounds/ended.mp3',
   './sounds/cheer.mp3',
   './sounds/cheer_go.mp3',
-  './sounds/voice_intro.mp3',
-  './sounds/voice_k1.mp3',
-  './sounds/voice_k2.mp3',
-  './sounds/voice_k3.mp3',
-  './sounds/voice_good1.mp3',
-  './sounds/voice_good2.mp3',
-  './sounds/voice_bad1.mp3',
-  './sounds/voice_normal.mp3',
-  './sounds/voice_perfect.mp3',
-  './sounds/voice_wrong1.mp3',
-  './sounds/voice_wrong2.mp3',
-  './sounds/voice_ended.mp3',
 ];
 
 self.addEventListener('install', event => {
