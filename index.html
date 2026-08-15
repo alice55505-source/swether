@@ -520,6 +520,25 @@
             // load 時只設背景，不播音樂（手機需等用戶手勢）
             const home = document.getElementById('home');
             home.style.backgroundImage = `url('${BG_MAP.home}')`;
+
+            // 依封面圖背景色動態設定畫面底色與 theme-color，避免留白邊
+            const tmpImg = new Image();
+            tmpImg.onload = function() {
+                try {
+                    const tc = document.createElement('canvas');
+                    tc.width = 50; tc.height = 50;
+                    const tx = tc.getContext('2d');
+                    tx.drawImage(tmpImg, 0, 0, tmpImg.naturalWidth, tmpImg.naturalHeight, 0, 0, 50, 50);
+                    const d = tx.getImageData(2, 2, 1, 1).data;
+                    const hex = '#' + [d[0], d[1], d[2]].map(v => v.toString(16).padStart(2, '0')).join('');
+                    [home, document.getElementById('gameArea'), document.body, document.documentElement]
+                        .forEach(el => { if (el) el.style.backgroundColor = hex; });
+                    let m = document.querySelector('meta[name="theme-color"]');
+                    if (!m) { m = document.createElement('meta'); m.name = 'theme-color'; document.head.appendChild(m); }
+                    m.content = hex;
+                } catch(e) {}
+            };
+            tmpImg.src = BG_MAP.home;
         }
         window.addEventListener('load', initGame);
 
@@ -691,16 +710,19 @@
             }
         }
 
-        // 防重疊：把畫面橫切成幾個格子，輪流從不同格子出現
-        let spawnSlotIndex = 0;
+        // 防重疊：限制同時出現的食物數量，並用隨機位置＋避讓已存在食物取代固定格子
+        let spawnOrderCounter = 0;
 
         function spawnFood() {
             // 難度參數
             const isExpert = difficulty === 'expert';
+
+            // 畫面上同時出現的食物數量上限，避免過度擁擠
+            const maxItems = isExpert ? 6 : 5;
+            if (gameItems.filter(it => !it.sliced).length >= maxItems) return;
+
             const wrongChance = isExpert ? 0.55 : 0.40;
-            const fallBase   = isExpert ? 1.0  : 0.6;
-            const fallRange  = isExpert ? 0.6  : 0.4;
-            const driftRange = isExpert ? 0.6  : 0.3;
+            const driftRange  = isExpert ? 1.2  : 0.8;
 
             const isWrong = Math.random() < wrongChance;
             if (!isWrong) correctSpawnCount++;
@@ -709,20 +731,31 @@
             const isBad = BAD_FOODS.includes(emoji);
 
             const FOOD_SIZE = 150;
-            const SLOTS = 4;  // 把畫面切成 4 個格子
-            const slotW = canvas.width / SLOTS;
-            // 在目前格子內隨機偏移，確保不超出邊界
-            const slotX = (spawnSlotIndex % SLOTS) * slotW;
+            const ITEM_H = FOOD_SIZE + 40;
+            const MIN_GAP = 155;
             const margin = FOOD_SIZE / 2 + 10;
-            const xMin = Math.max(margin, slotX + margin);
-            const xMax = Math.min(canvas.width - margin, slotX + slotW - margin);
-            const x = xMin + Math.random() * Math.max(0, xMax - xMin);
-            spawnSlotIndex = (spawnSlotIndex + 1) % SLOTS;
 
-            const fallSpeed = fallBase + Math.random() * fallRange;
+            // 隨機取 x 座標，最多嘗試 6 次避開畫面上方已存在的食物
+            let x = null;
+            for (let attempt = 0; attempt < 6; attempt++) {
+                const tryX = margin + Math.random() * (canvas.width - 2 * margin);
+                const blocked = gameItems.some(it =>
+                    !it.sliced &&
+                    it.y < ITEM_H * 2 &&
+                    Math.abs(it.x - tryX) < MIN_GAP
+                );
+                if (!blocked) { x = tryX; break; }
+            }
+            if (x === null) return;
 
-            // 輕微左右漂移
-            const vx = (Math.random() - 0.5) * driftRange;
+            const fallSpeed = isExpert ? 1.3 : 0.8;
+
+            // 漂移方向優先遠離附近的食物，避免斜向互撞
+            const rawDrift = (0.3 + Math.random() * 0.7) * driftRange;
+            const nearItem = gameItems.find(it => !it.sliced && it.y < ITEM_H * 2 && Math.abs(it.x - x) < 312);
+            const vx = nearItem !== undefined
+                ? (x > nearItem.x ? rawDrift : -rawDrift)
+                : (Math.random() < 0.5 ? rawDrift : -rawDrift);
 
             gameItems.push({
                 x: x,
@@ -735,7 +768,8 @@
                 isWrong: isWrong,
                 isBad: isBad,
                 sliced: false,
-                fadeAlpha: 1.0
+                fadeAlpha: 1.0,
+                spawnOrder: spawnOrderCounter++
             });
         }
 
@@ -768,9 +802,10 @@
                 it.x += it.vx;
                 it.vy += (it.gravity ?? 0.22);
 
-                // 輕微左右漂移，到邊界就反向
+                // 輕微左右漂移，碰到邊界就夾回畫面內並反向，避免飛出邊界
                 const FSIZE = 75;
-                if (it.x < FSIZE || it.x > canvas.width - FSIZE) { it.vx *= -1; }
+                if (it.x < FSIZE) { it.x = FSIZE; it.vx = Math.abs(it.vx); }
+                else if (it.x > canvas.width - FSIZE) { it.x = canvas.width - FSIZE; it.vx = -Math.abs(it.vx); }
 
                 ctx.textAlign = "center";
 
@@ -956,7 +991,7 @@
                         const nextThreshold = (lastCheerGoThreshold + 1) * 200;
                         if (scores[currentLevel] >= nextThreshold) {
                             lastCheerGoThreshold++;
-                            setTimeout(() => playSfx('cheer_go'), 300);
+                            setTimeout(() => playSfx('cheer_go', 2.0), 300);
                             setTimeout(() => burstRibbon(), 100);
                         }
                     }

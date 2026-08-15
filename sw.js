@@ -1,5 +1,5 @@
 const SHELL_VER = 'swether-shell-v3';
-const ASSETS_VER = 'swether-assets-v3';
+const ASSETS_VER = 'swether-assets-v4';
 const ALL_CACHES = [SHELL_VER, ASSETS_VER];
 
 const SHELL_FILES = [
