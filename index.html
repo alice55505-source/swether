@@ -708,7 +708,7 @@
             const emoji = pool[Math.floor(Math.random() * pool.length)];
             const isBad = BAD_FOODS.includes(emoji);
 
-            const FOOD_SIZE = 120;
+            const FOOD_SIZE = 150;
             const SLOTS = 4;  // 把畫面切成 4 個格子
             const slotW = canvas.width / SLOTS;
             // 在目前格子內隨機偏移，確保不超出邊界
@@ -726,7 +726,7 @@
 
             gameItems.push({
                 x: x,
-                y: -120,  // FOOD_SIZE=120
+                y: -150,  // FOOD_SIZE=150
                 vy: fallSpeed,
                 vx: vx,
                 gravity: 0,
@@ -769,7 +769,7 @@
                 it.vy += (it.gravity ?? 0.22);
 
                 // 輕微左右漂移，到邊界就反向
-                const FSIZE = 60;
+                const FSIZE = 75;
                 if (it.x < FSIZE || it.x > canvas.width - FSIZE) { it.vx *= -1; }
 
                 ctx.textAlign = "center";
@@ -796,7 +796,7 @@
                     it.rotR += 0.07;
                     it.fadeAlpha = Math.max(0, it.fadeAlpha - 0.018);
 
-                    const ESIZE = 120;
+                    const ESIZE = 150;
                     const drawHalf = (side) => {
                         // side: 'left' | 'right'
                         const offX = side === 'left' ? -it.halfOffX : it.halfOffX;
@@ -833,21 +833,21 @@
                         gameItems.splice(i, 1);
                     }
                 } else {
-                    ctx.font = "120px Arial";
+                    ctx.font = "150px Arial";
                     ctx.textAlign = "center";
                     ctx.textBaseline = "middle";
                     ctx.fillText(it.emoji, it.x, it.y);
 
                     // 食物名稱標籤（白底圓角，小字）
                     if (it.label) {
-                        ctx.font = "bold 22px sans-serif";
+                        ctx.font = "bold 28px sans-serif";
                         ctx.textBaseline = "alphabetic";
                         const tw = ctx.measureText(it.label).width;
-                        const pad = 10, labelY = it.y + 72;
+                        const pad = 12, labelY = it.y + 90;
                         ctx.save();
                         ctx.fillStyle = "rgba(255,255,255,0.95)";
                         ctx.beginPath();
-                        ctx.roundRect(it.x - tw/2 - pad, labelY - 22, tw + pad*2, 30, 8);
+                        ctx.roundRect(it.x - tw/2 - pad, labelY - 26, tw + pad*2, 36, 10);
                         ctx.fill();
                         ctx.fillStyle = "#000";
                         ctx.textAlign = "center";
@@ -931,7 +931,7 @@
 
         function sliceAt(x, y) {
             for (const it of gameItems) {
-                if (!it.sliced && Math.hypot(it.x - x, it.y - y) < 70) {
+                if (!it.sliced && Math.hypot(it.x - x, it.y - y) < 88) {
                     it.sliced = true;
                     if (it.isWrong) {
                         scores[currentLevel] = Math.max(0, scores[currentLevel] - SCORE_PENALTY);
